@@ -32,6 +32,7 @@ services:
       AGENT_URL: http://agent:6161
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       DB_PATH: /app/data/factory.db
+      WORKSPACES_ROOT: /app/data/workspaces
       # HOST_PROJECT_PATH: absolute path to this folder on the HOST machine.
       # Required for spawning agents (bind-mounts workspace folders).
       # Example: HOST_PROJECT_PATH=E:/nvnNNBT
@@ -67,13 +68,13 @@ services:
       - "${AGENT_PORT:-6161}:6161"
     environment:
       WORKSPACE_PATH: /workspace
-      SKILLSETS_PATH: /skill-sets
+      SKILLSETS_PATH: /app/data/workspaces
       AGENT_PORT: 6161
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       GROK_API_KEY: ${GROK_API_KEY:-}
     volumes:
       - ./workspace:/workspace
-      - ./skill-sets:/skill-sets
+      - ./data/workspaces:/app/data/workspaces
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:6161/health')"]
       interval: 10s
