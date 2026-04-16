@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Factory</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #0d0d0d;
+      --surface:      #161616;
+      --surface2:     #1e1e1e;
+      --border:       #2a2a2a;
+      --text:         #e0e0e0;
+      --muted:        #666;
+      --muted2:       #888;
+      --accent:       #7c6af7;
+      --accent-dim:   rgba(124,106,247,.15);
+      --accent-border:rgba(124,106,247,.3);
+      --green:        #3fb950;
+      --yellow:       #d29922;
+      --red:          #f85149;
+      --activity-w:   48px;
+      --tabbar-h:     35px;
+      --statusbar-h:  28px;
+      --right-w:      360px;
+    }
+
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+    }
+
+    /* ─── SHELL ──────────────────────────────────────────────── */
+    .shell { display: flex; height: 100vh; overflow: hidden; }
+
+    /* ─── ACTIVITY BAR ───────────────────────────────────────── */
+    .activity-bar {
+      width: var(--activity-w);
+      min-width: var(--activity-w);
+      background: #111;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px 0;
+      gap: 2px;
+      z-index: 20;
+    }
+
+    .act-btn {
+      position: relative;
+      width: 38px; height: 38px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: color .12s, background .12s;
+    }
+    .act-btn:hover              { color: var(--text); background: var(--surface2); }
+    .act-btn.active             { color: var(--accent); background: var(--accent-dim); }
+    .act-btn svg                { width: 19px; height: 19px; }
+
+    /* tooltip */
+    .act-btn::after {
+      content: attr(data-tip);
+      position: absolute;
+      left: calc(100% + 10px);
+      top: 50%; transform: translateY(-50%);
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 3px 9px;
+      font-size: 11px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .1s;
+      z-index: 100;
+    }
+    .act-btn:hover::after { opacity: 1; }
+    .act-spacer { flex: 1; }
+
+    /* ─── RIGHT SIDE ─────────────────────────────────────────── */
+    .right-side {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    /* ─── TAB BAR ────────────────────────────────────────────── */
+    .tab-bar {
+      height: var(--tabbar-h);
+      min-height: var(--tabbar-h);
+      display: flex;
+      align-items: stretch;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .tab-bar::-webkit-scrollbar { display: none; }
+
+    .tab {
+      display: flex; align-items: center; gap: 6px;
+      padding: 0 10px 0 14px;
+      min-width: 90px; max-width: 180px;
+      cursor: pointer;
+      border-right: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+      user-select: none;
+      background: var(--bg);
+      transition: background .1s;
+      flex-shrink: 0;
+    }
+    .tab:hover                    { background: var(--surface); color: var(--muted2); }
+    .tab.active                   { background: var(--surface2); color: var(--text); border-bottom: 2px solid var(--accent); }
+    .tab-label                    { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+    .tab-x {
+      width: 16px; height: 16px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 3px; border: none;
+      background: transparent; color: var(--muted);
+      cursor: pointer; font-size: 15px; line-height: 1;
+      opacity: 0; transition: opacity .1s, background .1s;
+      flex-shrink: 0;
+    }
+    .tab:hover .tab-x             { opacity: 1; }
+    .tab-x:hover                  { background: var(--border); color: var(--text); }
+
+    .tab-spacer                   { flex: 1; }
+    .tab-actions {
+      display: flex; align-items: center;
+      padding: 0 6px;
+      border-left: 1px solid var(--border);
+      gap: 2px;
+    }
+    .icon-btn {
+      width: 26px; height: 26px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 5px; border: none;
+      background: transparent; color: var(--muted);
+      cursor: pointer; transition: background .1s, color .1s;
+    }
+    .icon-btn:hover               { background: var(--surface2); color: var(--text); }
+    .icon-btn.on                  { color: var(--accent); }
+    .icon-btn svg                 { width: 15px; height: 15px; }
+
+    /* ─── WORK AREA ──────────────────────────────────────────── */
+    .work-area {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ─── MAIN CONTENT ───────────────────────────────────────── */
+    .main-content {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      min-width: 0;
+    }
+
+    .section { padding: 1.75rem 2rem; min-height: 100%; }
+
+    /* empty state (no tabs open) */
+    .empty-state {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      height: 100%; gap: 10px; color: var(--muted);
+      text-align: center;
+    }
+    .empty-state svg                { width: 40px; height: 40px; opacity: .2; }
+    .empty-state h2                 { font-size: .9rem; font-weight: 500; color: var(--muted2); }
+    .empty-state p                  { font-size: .75rem; }
+
+    /* section chrome */
+    .sec-head                       { margin-bottom: 1.5rem; }
+    .sec-title                      { font-size: 1.05rem; font-weight: 600; margin-bottom: .2rem; }
+    .sec-sub                        { font-size: .78rem; color: var(--muted); }
+
+    /* stub card */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1rem;
+    }
+    .card h3                        { font-size: .85rem; font-weight: 600; margin-bottom: .4rem; }
+    .card p                         { font-size: .78rem; color: var(--muted); line-height: 1.6; }
+
+    .phase {
+      display: inline-block;
+      padding: .1rem .45rem;
+      border-radius: 20px; font-size: .68rem; font-weight: 600;
+      background: var(--surface2); color: var(--muted);
+      border: 1px solid var(--border);
+      margin-left: .4rem; vertical-align: middle;
+    }
+
+    /* health strip */
+    .health-strip                   { display: flex; gap: .75rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .h-item {
+      display: flex; align-items: center; gap: .4rem;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: .35rem .75rem; font-size: .78rem;
+    }
+    .h-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--muted); flex-shrink: 0;
+    }
+    .h-dot.ok                       { background: var(--green); box-shadow: 0 0 5px var(--green); }
+    .h-dot.warn                     { background: var(--yellow); box-shadow: 0 0 5px var(--yellow); }
+    .h-dot.err                      { background: var(--red); box-shadow: 0 0 5px var(--red); }
+
+    /* quick actions */
+    .quick-actions                  { display: flex; gap: .6rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+    .btn {
+      padding: .35rem .85rem;
+      border-radius: 6px; border: none;
+      font-size: .78rem; font-weight: 500;
+      font-family: inherit; cursor: pointer;
+      transition: opacity .12s;
+    }
+    .btn:disabled                   { opacity: .4; cursor: not-allowed; }
+    .btn-primary                    { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { opacity: .85; }
+    .btn-ghost {
+      background: transparent; color: var(--muted2);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover:not(:disabled) { color: var(--text); border-color: var(--muted); }
+
+    /* ─── RIGHT PANEL (Art) ──────────────────────────────────── */
+    .right-panel {
+      width: 0; min-width: 0; overflow: hidden;
+      border-left: 1px solid transparent;
+      display: flex; flex-direction: column;
+      background: var(--surface);
+      transition: width .18s ease, min-width .18s ease, border-color .18s;
+    }
+    .right-panel.open {
+      width: var(--right-w); min-width: var(--right-w);
+      border-left-color: var(--border);
+    }
+
+    .rp-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .45rem .7rem;
+      border-bottom: 1px solid var(--border);
+      min-height: 36px; flex-shrink: 0;
+    }
+    .rp-title {
+      display: flex; align-items: center; gap: .4rem;
+      font-size: .78rem; font-weight: 600;
+    }
+    .art-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--muted);
+    }
+    .art-dot.live                   { background: var(--green); box-shadow: 0 0 4px var(--green); }
+
+    .rp-model {
+      font-size: .68rem; color: var(--muted);
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 4px; padding: .1rem .4rem;
+    }
+
+    .rp-messages {
+      flex: 1; overflow-y: auto;
+      padding: .65rem .7rem;
+      display: flex; flex-direction: column; gap: .45rem;
+      scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+    }
+
+    .msg {
+      max-width: 96%; padding: .45rem .7rem;
+      border-radius: 8px; font-size: .8rem; line-height: 1.55;
+      word-break: break-word; white-space: pre-wrap;
+    }
+    .msg.user {
+      align-self: flex-end;
+      background: var(--accent-dim); border: 1px solid var(--accent-border);
+    }
+    .msg.assistant {
+      align-self: flex-start;
+      background: var(--bg); border: 1px solid var(--border);
+    }
+    .msg.thinking                   { color: var(--muted); font-style: italic; }
+
+    .cursor::after { content: '▋'; animation: blink .8s step-end infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    .rp-input-area {
+      border-top: 1px solid var(--border); padding: .5rem; flex-shrink: 0;
+    }
+    .rp-input-row                   { display: flex; gap: .4rem; align-items: flex-end; }
+    .rp-textarea {
+      flex: 1; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 7px; padding: .4rem .6rem;
+      color: var(--text); font-size: .8rem; font-family: inherit;
+      resize: none; min-height: 32px; max-height: 120px;
+      outline: none; line-height: 1.45;
+      transition: border-color .12s;
+    }
+    .rp-textarea:focus              { border-color: var(--accent); }
+    .rp-send {
+      width: 32px; height: 32px;
+      border-radius: 7px; border: none;
+      background: var(--accent); color: #fff;
+      cursor: pointer; display: flex;
+      align-items: center; justify-content: center;
+      transition: opacity .12s; flex-shrink: 0;
+    }
+    .rp-send:hover:not(:disabled)   { opacity: .85; }
+    .rp-send:disabled               { opacity: .3; cursor: not-allowed; }
+    .rp-send svg                    { width: 13px; height: 13px; }
+
+    /* ─── BOTTOM PANEL ───────────────────────────────────────── */
+    .bottom-panel {
+      border-top: 1px solid var(--border);
+      background: var(--bg);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .drag-handle {
+      height: 4px; cursor: ns-resize;
+      background: transparent; flex-shrink: 0;
+    }
+    .drag-handle:hover              { background: var(--accent); opacity: .4; }
+
+    .status-bar {
+      height: var(--statusbar-h); min-height: var(--statusbar-h);
+      display: flex; align-items: center;
+      padding: 0 .75rem; gap: 1rem;
+      font-size: .72rem; color: var(--muted);
+      flex-shrink: 0;
+    }
+    .s-item                         { display: flex; align-items: center; gap: .3rem; }
+    .s-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+    }
+    .s-dot.ok                       { background: var(--green); }
+    .s-dot.warn                     { background: var(--yellow); }
+    .s-dot.err                      { background: var(--red); }
+    .s-dot.idle                     { background: var(--muted); }
+    .s-spacer                       { flex: 1; }
+    .s-expand {
+      display: flex; align-items: center; gap: .25rem;
+      cursor: pointer; padding: .15rem .4rem;
+      border-radius: 4px; transition: background .1s;
+    }
+    .s-expand:hover                 { background: var(--surface); color: var(--text); }
+    .s-expand svg                   { width: 11px; height: 11px; }
+
+    .panel-body {
+      flex: 1; overflow-y: auto; padding: .4rem .75rem;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: .72rem; color: var(--muted2);
+      scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+    }
+    .log-line                       { padding: .08rem 0; line-height: 1.5; }
+    .log-line .ts                   { color: var(--muted); }
+    .log-line.info .lv              { color: var(--green); }
+    .log-line.warn .lv              { color: var(--yellow); }
+    .log-line.error .lv             { color: var(--red); }
+
+    /* ─── SCROLLBAR ──────────────────────────────────────────── */
+    ::-webkit-scrollbar             { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track       { background: transparent; }
+    ::-webkit-scrollbar-thumb       { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+    .spinner {
+      display: inline-block; width: 11px; height: 11px;
+      border: 2px solid var(--border); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin .5s linear infinite;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+
+<body x-cloak x-data>
+<div class="shell">
+
+  <!-- ═══ ACTIVITY BAR ════════════════════════════════════════ -->
+  <aside class="activity-bar" x-data>
+    <button class="act-btn" data-tip="Overview"
+      :class="{active: $store.f.hasActive('overview')}"
+      @click="$store.f.open('overview', $event)">
+      <!-- grid icon -->
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+        <rect x="2" y="2" width="7" height="7" rx="1.5"/><rect x="11" y="2" width="7" height="7" rx="1.5"/>
+        <rect x="2" y="11" width="7" height="7" rx="1.5"/><rect x="11" y="11" width="7" height="7" rx="1.5"/>
+      </svg>
+    </button>
+
+    <button class="act-btn" data-tip="Art Office"
+      :class="{active: $store.f.hasActive('artoffice')}"
+      @click="$store.f.open('artoffice', $event)">
+      <!-- person + sparkle -->
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="9" cy="7.5" r="3"/>
+        <path d="M3 18c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke-linecap="round"/>
+        <path d="M15.5 2l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z" fill="currentColor" stroke="none"/>
+      </svg>
+    </button>
+
+    <button class="act-btn" data-tip="Lab"
+      :class="{active: $store.f.hasActive('lab')}"
+      @click="$store.f.open('lab', $event)">
+      <!-- flask -->
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M7.5 3v5.5L3.5 16a1 1 0 00.9 1.5h11.2a1 1 0 00.9-1.5L12.5 8.5V3"/>
+        <path d="M6.5 3h7"/><circle cx="9" cy="13" r=".8" fill="currentColor" stroke="none"/>
+        <circle cx="12" cy="15.2" r=".6" fill="currentColor" stroke="none"/>
+      </svg>
+    </button>
+
+    <button class="act-btn" data-tip="Agents"
+      :class="{active: $store.f.hasActive('agents')}"
+      @click="$store.f.open('agents', $event)">
+      <!-- robot -->
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <rect x="4" y="7" width="12" height="9" rx="2"/>
+        <circle cx="7.5" cy="11.5" r="1" fill="currentColor" stroke="none"/>
+        <circle cx="12.5" cy="11.5" r="1" fill="currentColor" stroke="none"/>
+        <path d="M10 3v4M7 16v1.5M13 16v1.5"/>
+        <circle cx="10" cy="3" r="1.5"/>
+        <path d="M7.5 11.5h5" stroke-dasharray="1 1"/>
+      </svg>
+    </button>
+
+    <button class="act-btn" data-tip="Teams"
+      :class="{active: $store.f.hasActive('teams')}"
+      @click="$store.f.open('teams', $event)">
+      <!-- group -->
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <circle cx="7" cy="7.5" r="2.8"/>
+        <path d="M1 18c0-3.3 2.7-6 6-6s6 2.7 6 6"/>
+        <circle cx="14.5" cy="7.5" r="2.2"/>
+        <path d="M14.5 13.5c1.8.4 3 2 3 3.5" stroke-dasharray="2 1"/>
+      </svg>
+    </button>
+
+    <button class="act-btn" data-tip="Arena"
+      :class="{active: $store.f.hasActive('arena')}"
+      @click="$store.f.open('arena', $event)">
+      <!-- lightning -->
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+        <path d="M11.5 2L4 12h7l-2.5 8L18 10h-7z"/>
+      </svg>
+    </button>
+
+    <button class="act-btn" data-tip="Benchmark"
+      :class="{active: $store.f.hasActive('benchmark')}"
+      @click="$store.f.open('benchmark', $event)">
+      <!-- bar chart -->
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M3 17V9M7.5 17V5M12 17V11M16.5 17V7"/>
+      </svg>
+    </button>
+
+    <div class="act-spacer"></div>
+
+    <button class="act-btn" data-tip="Settings"
+      :class="{active: $store.f.hasActive('settings')}"
+      @click="$store.f.open('settings', $event)">
+      <!-- gear -->
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <circle cx="10" cy="10" r="2.8"/>
+        <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.1 4.1l1.5 1.5M14.4 14.4l1.5 1.5M4.1 15.9l1.5-1.5M14.4 5.6l1.5-1.5"/>
+      </svg>
+    </button>
+  </aside>
+
+  <!-- ═══ RIGHT SIDE ══════════════════════════════════════════ -->
+  <div class="right-side">
+
+    <!-- ─── TAB BAR ──────────────────────────────────────────── -->
+    <div class="tab-bar" x-data>
+      <template x-for="tab in $store.f.tabs" :key="tab.id">
+        <div class="tab" :class="{active: $store.f.activeId === tab.id}"
+             @click="$store.f.activeId = tab.id">
+          <span class="tab-label" x-text="tab.label"></span>
+          <button class="tab-x" @click.stop="$store.f.close(tab.id)" title="Close tab">×</button>
+        </div>
+      </template>
+      <div class="tab-spacer"></div>
+      <div class="tab-actions">
+        <button class="icon-btn" :class="{on: $store.f.rightOpen}"
+                @click="$store.f.rightOpen = !$store.f.rightOpen"
+                title="Toggle Art panel">
+          <!-- chat bubble icon -->
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+            <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v9a1 1 0 01-1 1H7l-4 3V4z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- ─── WORK AREA ─────────────────────────────────────────── -->
+    <div class="work-area">
+
+      <!-- ── MAIN CONTENT ──────────────────────────────────────── -->
+      <main class="main-content" x-data>
+
+        <!-- No tabs open -->
+        <div class="empty-state" x-show="!$store.f.activeTab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+          <h2>Agent Factory</h2>
+          <p>Select a section from the activity bar to get started.</p>
+        </div>
+
+        <!-- ── OVERVIEW ──────────────────────────────────────────── -->
+        <div class="section" x-show="$store.f.activeTab?.type === 'overview'"
+             x-data="overviewSection()">
+          <div class="sec-head">
+            <div class="sec-title">Overview</div>
+            <div class="sec-sub">Situation room — system health, active agents, recent activity.</div>
+          </div>
+
+          <!-- Health strip -->
+          <div class="health-strip">
+            <div class="h-item">
+              <div class="h-dot" :class="health.agent"></div>
+              <span>Agent service</span>
+            </div>
+            <div class="h-item">
+              <div class="h-dot" :class="health.factory"></div>
+              <span>Factory</span>
+            </div>
+            <div class="h-item">
+              <div class="h-dot" :class="health.ollama"></div>
+              <span>Ollama</span>
+            </div>
+          </div>
+
+          <!-- Resource bar -->
+          <div class="card" style="padding:.75rem 1.25rem;margin-bottom:1rem">
+            <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:center">
+              <!-- CPU -->
+              <div style="display:flex;flex-direction:column;gap:.2rem;min-width:90px">
+                <div style="font-size:.7rem;color:var(--muted);display:flex;justify-content:space-between">
+                  <span>CPU</span>
+                  <span x-text="stats.cpu_pct != null ? stats.cpu_pct.toFixed(0) + '%' : '—'"></span>
+                </div>
+                <div style="height:4px;background:var(--border);border-radius:2px">
+                  <div style="height:100%;border-radius:2px;transition:width .4s"
+                       :style="`width:${stats.cpu_pct ?? 0}%; background:${stats.cpu_pct > 85 ? 'var(--red)' : stats.cpu_pct > 60 ? 'var(--yellow)' : 'var(--accent)'}`">
+                  </div>
+                </div>
+              </div>
+              <!-- RAM -->
+              <template x-if="stats.ram">
+                <div style="display:flex;flex-direction:column;gap:.2rem;min-width:110px">
+                  <div style="font-size:.7rem;color:var(--muted);display:flex;justify-content:space-between">
+                    <span>RAM</span>
+                    <span x-text="`${(stats.ram.used_mb/1024).toFixed(1)} / ${(stats.ram.total_mb/1024).toFixed(1)} GB`"></span>
+                  </div>
+                  <div style="height:4px;background:var(--border);border-radius:2px">
+                    <div style="height:100%;border-radius:2px;transition:width .4s"
+                         :style="`width:${(stats.ram.used_mb/stats.ram.total_mb*100).toFixed(0)}%; background:${stats.ram.used_mb/stats.ram.total_mb > .85 ? 'var(--red)' : stats.ram.used_mb/stats.ram.total_mb > .65 ? 'var(--yellow)' : 'var(--green)'}`">
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <!-- VRAM -->
+              <template x-if="stats.vram">
+                <div style="display:flex;flex-direction:column;gap:.2rem;min-width:110px">
+                  <div style="font-size:.7rem;color:var(--muted);display:flex;justify-content:space-between">
+                    <span>VRAM</span>
+                    <span x-text="`${(stats.vram.used_mb/1024).toFixed(1)} / ${(stats.vram.total_mb/1024).toFixed(1)} GB`"></span>
+                  </div>
+                  <div style="height:4px;background:var(--border);border-radius:2px">
+                    <div style="height:100%;border-radius:2px;transition:width .4s"
+                         :style="`width:${(stats.vram.used_mb/stats.vram.total_mb*100).toFixed(0)}%; background:${stats.vram.used_mb/stats.vram.total_mb > .85 ? 'var(--red)' : stats.vram.used_mb/stats.vram.total_mb > .65 ? 'var(--yellow)' : 'var(--green)'}`">
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Quick actions -->
+          <div class="quick-actions">
+            <button class="btn btn-primary" @click="$store.f.open('lab')">Open Lab</button>
+            <button class="btn btn-ghost" @click="$store.f.open('agents')">Agents</button>
+            <button class="btn btn-ghost" @click="$store.f.open('arena')">New Arena session</button>
+            <button class="btn btn-ghost" @click="$store.f.open('benchmark')">Run Benchmark</button>
+          </div>
+
+          <!-- Recent activity -->
+          <div class="card">
+            <h3>Recent activity</h3>
+            <template x-if="events.length === 0">
+              <p style="color:var(--muted);font-size:.78rem;margin-top:.5rem">
+                No events yet. Activity appears here as you work.
+              </p>
+            </template>
+            <template x-if="events.length > 0">
+              <div style="margin-top:.6rem;display:flex;flex-direction:column;gap:.3rem">
+                <template x-for="ev in events" :key="ev.id">
+                  <div style="display:flex;align-items:flex-start;gap:.55rem;font-size:.77rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
+                    <div style="width:7px;height:7px;border-radius:50%;margin-top:.3rem;flex-shrink:0"
+                         :style="`background:${ev.level === 'error' ? 'var(--red)' : ev.level === 'warn' ? 'var(--yellow)' : 'var(--green)'}`">
+                    </div>
+                    <div style="flex:1;min-width:0">
+                      <span style="color:var(--muted2)" x-text="ev.type.replace(/_/g,' ')"></span>
+                      <template x-if="ev.target_slug">
+                        <span style="color:var(--muted);margin-left:.3rem" x-text="'· ' + ev.target_slug"></span>
+                      </template>
+                      <template x-if="ev.detail">
+                        <span style="color:var(--muted);margin-left:.3rem" x-text="'— ' + ev.detail"></span>
+                      </template>
+                    </div>
+                    <span style="color:var(--muted);font-size:.68rem;white-space:nowrap;flex-shrink:0" x-text="ev.created_at.slice(11,19)"></span>
+                  </div>
+                </template>
+              </div>
+            </template>
+          </div>
+
+          <!-- Active agents placeholder -->
+          <div class="card">
+            <h3>Active agents <span class="phase">Phase 2</span></h3>
+            <p style="color:var(--muted);font-size:.78rem;margin-top:.5rem">
+              No agents spawned. Spawn an agent from the Lab or Agents section.
+            </p>
+          </div>
+        </div>
+
+        <!-- ── ART OFFICE ─────────────────────────────────────────── -->
+        <div class="section" x-show="$store.f.activeTab?.type === 'artoffice'">
+          <div class="sec-head">
+            <div class="sec-title">Art Office</div>
+            <div class="sec-sub">Manage Art's identity, memory, skills, and MCP connections.</div>
+          </div>
+          <div class="card">
+            <h3>Identity editor <span class="phase">Phase 1</span></h3>
+            <p>Edit Art's core files — SOUL.md, AGENTS.md, TOOLS.md, HEARTBEAT.md, USER.md — via structured forms. Raw markdown always available.</p>
+          </div>
+          <div class="card">
+            <h3>Memory viewer <span class="phase">Phase 1</span></h3>
+            <p>View MEMORY.md by section. Trim controls: delete section, truncate to last N entries, clear all. Auto-alerts when memory exceeds threshold.</p>
+          </div>
+          <div class="card">
+            <h3>Skills browser <span class="phase">Phase 1</span></h3>
+            <p>Browse, add, edit, and remove Art's skill files.</p>
+          </div>
+          <div class="card">
+            <h3>Model + MCP <span class="phase">Phase 1</span></h3>
+            <p>Switch Art's provider and model without restarting the service. MCP server connection list: add, remove, test. Connections auto-apply on save.</p>
+          </div>
+        </div>
+
+        <!-- ── LAB ────────────────────────────────────────────────── -->
+        <div class="section" x-show="$store.f.activeTab?.type === 'lab'">
+          <div class="sec-head">
+            <div class="sec-title">Lab</div>
+            <div class="sec-sub">Build skill-sets. Define identity, add skills, test in sandbox, tag a version, spawn.</div>
+          </div>
+          <div class="card">
+            <h3>Workspace editor <span class="phase">Phase 2</span></h3>
+            <p>Create from <code style="font-size:.75rem;color:var(--muted2)">_template</code> or clone from remote. Edit SOUL, AGENTS, TOOLS, HEARTBEAT, USER, skills, MCP config, knowledge inbox.</p>
+          </div>
+          <div class="card">
+            <h3>Sandbox test panel <span class="phase">Phase 2</span></h3>
+            <p>Load a workspace into an ephemeral container, chat with it, iterate. Each Lab tab runs its own isolated container. Promote to spawn when behaviour is correct.</p>
+          </div>
+          <div class="card">
+            <h3>Version control <span class="phase">Phase 4</span></h3>
+            <p>Tag workspace snapshots with git. Browse history, diff any two versions line by line, restore, push to remote for collaboration.</p>
+          </div>
+        </div>
+
+        <!-- ── AGENTS ──────────────────────────────────────────────── -->
+        <div class="section" x-show="$store.f.activeTab?.type === 'agents'">
+          <div class="sec-head">
+            <div class="sec-title">Agents</div>
+            <div class="sec-sub">Registry of spawned production agents. Start, stop, delete, chat.</div>
+          </div>
+          <div class="card">
+            <h3>Agent registry <span class="phase">Phase 2</span></h3>
+            <p>Each spawned agent runs in its own container with its own workspace, knowledge base, and port allocation. Start, stop, delete from here. Click an agent to open a proxied chat in a new tab.</p>
+          </div>
+        </div>
+
+        <!-- ── TEAMS ───────────────────────────────────────────────── -->
+        <div class="section" x-show="$store.f.activeTab?.type === 'teams'">
+          <div class="sec-head">
+            <div class="sec-title">Teams</div>
+            <div class="sec-sub">Build multi-agent teams with a shared knowledge center.</div>
+          </div>
+          <div class="card">
+            <h3>Team builder <span class="phase">Phase 3</span></h3>
+            <p>Assign spawned agents to a team. Set an orchestrator. Connect a shared knowledge library. Members can query the shared knowledge base at runtime.</p>
+          </div>
+        </div>
+
+        <!-- ── ARENA ───────────────────────────────────────────────── -->
+        <div class="section" x-show="$store.f.activeTab?.type === 'arena'">
+          <div class="sec-head">
+            <div class="sec-title">Arena</div>
+            <div class="sec-sub">Run multi-agent sessions. Observe turn by turn. Replay any past session.</div>
+          </div>
+          <div class="card">
+            <h3>Session runner <span class="phase">Phase 3</span></h3>
+            <p>Pick a mode: <strong>Direct</strong> (two agents debate or collaborate), <strong>Orchestrated</strong> (one agent leads, delegates), or <strong>Swarm</strong> (any agent hands off to any other mid-turn). Set a goal, start, observe.</p>
+          </div>
+          <div class="card">
+            <h3>Replay <span class="phase">Phase 3</span></h3>
+            <p>Every session turn is stored. Load any past arena session and step through it turn by turn.</p>
+          </div>
+        </div>
+
+        <!-- ── BENCHMARK ───────────────────────────────────────────── -->
+        <div class="section" x-show="$store.f.activeTab?.type === 'benchmark'">
+          <div class="sec-head">
+            <div class="sec-title">Benchmark</div>
+            <div class="sec-sub">Evaluate agent quality. Compare versions, models, and judges.</div>
+          </div>
+          <div class="card">
+            <h3>Task set editor <span class="phase">Phase 4</span></h3>
+            <p>Create task sets via form or ask Art to generate them from the workspace's identity files. Each task has an input and evaluation criteria. Task sets are git-versioned alongside the workspace.</p>
+          </div>
+          <div class="card">
+            <h3>Benchmark runs <span class="phase">Phase 4</span></h3>
+            <p>Select workspace + version tag + model + judge model. Run. LLM-as-judge scores each response 0–10 with a reason. Compare across versions and models in the results chart.</p>
+          </div>
+        </div>
+
+        <!-- ── SETTINGS ────────────────────────────────────────────── -->
+        <div class="section" x-show="$store.f.activeTab?.type === 'settings'">
+          <div class="sec-head">
+            <div class="sec-title">Settings</div>
+            <div class="sec-sub">Provider profiles, default model, app configuration.</div>
+          </div>
+          <div class="card">
+            <h3>Provider profiles <span class="phase">Phase 1</span></h3>
+            <p>Add, edit, and test LLM provider connections — Ollama, LM Studio, xAI, OpenAI, custom. Each profile declares its capabilities (text, tools, image, embeddings). All profiles testable with one click.</p>
+          </div>
+          <div class="card">
+            <h3>App config <span class="phase">Phase 1</span></h3>
+            <p>Default model, memory alert threshold, cost indicator soft/hard limits, Lab pre-warm pool size, log level.</p>
+          </div>
+        </div>
+
+      </main><!-- /main-content -->
+
+      <!-- ── RIGHT PANEL: ART ───────────────────────────────────── -->
+      <aside class="right-panel" :class="{open: $store.f.rightOpen}"
+             x-data="artPanel()">
+        <div class="rp-header">
+          <div class="rp-title">
+            <div class="art-dot" :class="{live: ready}"></div>
+            <span>Art</span>
+          </div>
+          <span class="rp-model" x-text="model || '…'"></span>
+        </div>
+
+        <div class="rp-messages" x-ref="msgbox">
+          <template x-if="messages.length === 0">
+            <p style="color:var(--muted);font-size:.75rem;text-align:center;padding:1rem 0">
+              Art is your top-level agent.<br>Ask anything.
+            </p>
+          </template>
+          <template x-for="(m, i) in messages" :key="i">
+            <div class="msg" :class="[m.role, m.streaming ? 'thinking' : '', m.streaming ? 'cursor' : '']"
+                 x-text="m.content || (m.streaming ? 'Thinking…' : '')">
+            </div>
+          </template>
+        </div>
+
+        <div class="rp-input-area">
+          <div class="rp-input-row">
+            <textarea class="rp-textarea" x-ref="input"
+              x-model="draft" rows="1"
+              placeholder="Message Art…"
+              @keydown.enter.prevent="$event.shiftKey ? draft += '\n' : send()"
+              @input="autosize($refs.input)"
+              :disabled="streaming">
+            </textarea>
+            <button class="rp-send" @click="send()" :disabled="!draft.trim() || streaming">
+              <svg viewBox="0 0 20 20" fill="currentColor">
+                <path d="M2 10l16-8-6 8 6 8z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+    </div><!-- /work-area -->
+
+    <!-- ─── BOTTOM PANEL ──────────────────────────────────────── -->
+    <div class="bottom-panel" x-data
+         :style="`height: ${$store.f.bottomH}px`">
+      <div class="drag-handle" @mousedown="$store.f.startResize($event)"></div>
+      <div class="status-bar">
+        <div class="s-item">
+          <div class="s-dot" :class="$store.f.status.agent"></div>
+          <span x-text="$store.f.status.agent === 'ok' ? 'Agent OK' : 'Agent offline'"></span>
+        </div>
+        <div class="s-item">
+          <div class="s-dot" :class="$store.f.status.factory"></div>
+          <span>Factory</span>
+        </div>
+        <div class="s-item">
+          <div class="s-dot" :class="$store.f.status.ollama"></div>
+          <span>Ollama</span>
+        </div>
+        <div class="s-spacer"></div>
+        <div class="s-expand" @click="$store.f.togglePanel()">
+          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path :d="$store.f.bottomH <= 32 ? 'M2 8l4-4 4 4' : 'M2 4l4 4 4-4'"/>
+          </svg>
+          <span x-text="$store.f.bottomH > 32 ? 'Collapse' : 'Logs'"></span>
+        </div>
+      </div>
+      <div class="panel-body" x-ref="panelBody" x-show="$store.f.bottomH > 32">
+        <template x-for="(line, i) in $store.f.logs" :key="i">
+          <div class="log-line" :class="line.level">
+            <span class="ts" x-text="line.ts"></span>
+            <span class="lv" x-text="'[' + line.level + ']'"></span>
+            <span x-text="' ' + line.msg"></span>
+          </div>
+        </template>
+        <template x-if="$store.f.logs.length === 0">
+          <div style="color:var(--muted);padding:.25rem 0">Connecting to event stream…</div>
+        </template>
+      </div>
+    </div>
+
+  </div><!-- /right-side -->
+</div><!-- /shell -->
+
+<script>
+  const SECTION_LABELS = {
+    overview:  'Overview',
+    artoffice: 'Art Office',
+    lab:       'Lab',
+    agents:    'Agents',
+    teams:     'Teams',
+    arena:     'Arena',
+    benchmark: 'Benchmark',
+    settings:  'Settings',
+  }
+
+  document.addEventListener('alpine:init', () => {
+
+    Alpine.store('f', {
+      // ── Tabs ──────────────────────────────────────────────────
+      tabs:     [],
+      activeId: null,
+
+      open(type, event) {
+        const forceNew = event?.ctrlKey || event?.metaKey
+        if (!forceNew) {
+          const ex = this.tabs.find(t => t.type === type)
+          if (ex) { this.activeId = ex.id; return }
+        }
+        const id = `${type}-${Date.now()}`
+        this.tabs.push({ id, type, label: SECTION_LABELS[type] ?? type })
+        this.activeId = id
+      },
+
+      close(id) {
+        const idx = this.tabs.findIndex(t => t.id === id)
+        if (idx < 0) return
+        this.tabs.splice(idx, 1)
+        if (this.activeId === id)
+          this.activeId = this.tabs[Math.max(0, idx - 1)]?.id ?? null
+      },
+
+      get activeTab() {
+        return this.tabs.find(t => t.id === this.activeId) ?? null
+      },
+
+      hasActive(type) {
+        return !!this.tabs.find(t => t.type === type && t.id === this.activeId)
+      },
+
+      // ── Panels ────────────────────────────────────────────────
+      rightOpen: true,
+      bottomH:   28,           // px — 28 = status bar only
+
+      togglePanel() {
+        this.bottomH = this.bottomH <= 28 ? 260 : 28
+      },
+
+      startResize(e) {
+        const startY  = e.clientY
+        const startH  = this.bottomH
+        const self    = this
+        const onMove  = ev => {
+          const delta = startY - ev.clientY
+          self.bottomH = Math.max(28, Math.min(window.innerHeight * .65, startH + delta))
+        }
+        const onUp = () => {
+          window.removeEventListener('mousemove', onMove)
+          window.removeEventListener('mouseup',   onUp)
+        }
+        window.addEventListener('mousemove', onMove)
+        window.addEventListener('mouseup',   onUp)
+      },
+
+      // ── Status & logs ─────────────────────────────────────────
+      status: { agent: 'idle', factory: 'idle', ollama: 'idle' },
+      logs: [],
+
+      addLog(level, msg) {
+        const ts = new Date().toTimeString().slice(0, 8)
+        this.logs.push({ ts, level, msg })
+        if (this.logs.length > 200) this.logs.shift()
+      },
+
+      async pollHealth() {
+        try {
+          const r = await fetch('/api/factory/health', { signal: AbortSignal.timeout(4000) })
+          if (r.ok) {
+            const d = await r.json()
+            this.status.factory = d.status === 'ok' ? 'ok' : 'warn'
+            this.status.agent   = d.services?.agent  || 'err'
+            this.status.ollama  = d.services?.ollama || 'err'
+          } else {
+            this.status.factory = 'err'
+          }
+        } catch {
+          this.status.factory = 'err'
+        }
+      },
+
+      init() {
+        this.pollHealth()
+        setInterval(() => this.pollHealth(), 10000)
+        this._connectEventStream()
+        // Open Overview by default
+        this.open('overview')
+      },
+
+      _connectEventStream() {
+        const self = this
+        let retryMs = 2000
+
+        function connect() {
+          const es = new EventSource('/api/factory/events/stream')
+
+          es.onmessage = e => {
+            retryMs = 2000
+            try {
+              const ev = JSON.parse(e.data)
+              const ts  = (ev.created_at || '').slice(11, 19) || new Date().toTimeString().slice(0, 8)
+              const lvl = ev.level === 'error' ? 'error' : ev.level === 'warn' ? 'warn' : 'info'
+              const msg = [ev.type, ev.target_slug && `· ${ev.target_slug}`, ev.detail && `— ${ev.detail}`]
+                .filter(Boolean).join(' ')
+              self.logs.push({ ts, level: lvl, msg })
+              if (self.logs.length > 200) self.logs.shift()
+              // sync status dots from events
+              if (ev.type === 'factory_started') self.status.factory = 'ok'
+            } catch {}
+          }
+
+          es.onerror = () => {
+            es.close()
+            setTimeout(connect, retryMs)
+            retryMs = Math.min(retryMs * 2, 30000)
+          }
+        }
+
+        connect()
+      },
+    })
+
+  })
+
+  // ── Overview section ───────────────────────────────────────────────
+  function overviewSection() {
+    return {
+      health: { agent: 'idle', factory: 'idle', ollama: 'idle' },
+      stats:  { cpu_pct: null, ram: null, vram: null },
+      events: [],
+
+      async init() {
+        await Promise.all([this.checkHealth(), this.loadEvents(), this.loadStats()])
+        setInterval(() => this.checkHealth(), 10000)
+        setInterval(() => this.loadStats(),  5000)
+        setInterval(() => this.loadEvents(), 30000)
+      },
+
+      async checkHealth() {
+        try {
+          const r = await fetch('/api/factory/health', { signal: AbortSignal.timeout(4000) })
+          if (r.ok) {
+            const d = await r.json()
+            this.health.factory = d.status === 'ok' ? 'ok' : 'warn'
+            this.health.agent   = d.services?.agent  || 'err'
+            this.health.ollama  = d.services?.ollama || 'err'
+          } else {
+            this.health.factory = this.health.agent = this.health.ollama = 'err'
+          }
+        } catch {
+          this.health.factory = this.health.agent = this.health.ollama = 'err'
+        }
+      },
+
+      async loadStats() {
+        try {
+          const r = await fetch('/api/factory/system/stats', { signal: AbortSignal.timeout(4000) })
+          if (r.ok) this.stats = await r.json()
+        } catch {}
+      },
+
+      async loadEvents() {
+        try {
+          const r = await fetch('/api/factory/events?limit=20', { signal: AbortSignal.timeout(4000) })
+          if (r.ok) {
+            const d = await r.json()
+            this.events = d.events || []
+          }
+        } catch {}
+      },
+    }
+  }
+
+  // ── Art panel ──────────────────────────────────────────────────────
+  function artPanel() {
+    return {
+      messages: [],
+      draft:    '',
+      streaming: false,
+      ready:    false,
+      model:    '',
+
+      async init() {
+        // Probe agent health via factory
+        try {
+          const r = await fetch('/api/factory/health', { signal: AbortSignal.timeout(4000) })
+          if (r.ok) {
+            const d = await r.json()
+            this.ready = d.services?.agent === 'ok'
+          }
+        } catch { this.ready = false }
+        // Model name from agent
+        try {
+          const r = await fetch('/api/models', { signal: AbortSignal.timeout(4000) })
+          if (r.ok) {
+            const d = await r.json()
+            this.model = d?.current || 'art'
+          }
+        } catch {}
+      },
+
+      autosize(el) {
+        el.style.height = 'auto'
+        el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+      },
+
+      scrollBottom() {
+        this.$nextTick(() => {
+          const box = this.$refs.msgbox
+          if (box) box.scrollTop = box.scrollHeight
+        })
+      },
+
+      async send() {
+        const text = this.draft.trim()
+        if (!text || this.streaming) return
+        this.draft = ''
+        this.$nextTick(() => {
+          if (this.$refs.input) {
+            this.$refs.input.style.height = 'auto'
+          }
+        })
+
+        this.messages.push({ role: 'user', content: text })
+        const asst = { role: 'assistant', content: '', streaming: true }
+        this.messages.push(asst)
+        this.streaming = true
+        this.scrollBottom()
+
+        try {
+          const r = await fetch('/chat', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ messages: this.messages.slice(0, -1) }),
+          })
+          if (!r.ok || !r.body) {
+            asst.content = 'Connection error (' + r.status + ').'
+            asst.streaming = false
+            this.streaming = false
+            return
+          }
+
+          const reader  = r.body.getReader()
+          const decoder = new TextDecoder()
+          let   buf     = ''
+
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            buf += decoder.decode(value, { stream: true })
+            const lines = buf.split('\n')
+            buf = lines.pop() // keep incomplete line
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue
+              const raw = line.slice(6).trim()
+              if (raw === '[DONE]') break
+              try {
+                const parsed = JSON.parse(raw)
+                const delta  = parsed?.choices?.[0]?.delta?.content
+                  || parsed?.text
+                  || ''
+                if (delta) {
+                  asst.content += delta
+                  this.scrollBottom()
+                }
+              } catch {}
+            }
+          }
+        } catch (e) {
+          asst.content = 'Network error: ' + e.message
+        } finally {
+          asst.streaming = false
+          this.streaming = false
+          this.scrollBottom()
+        }
+      },
+    }
+  }
+</script>
+</body>
+</html>

@@ -10,36 +10,35 @@ services:
     ports:
       - "${UI_PORT:-3000}:80"
     depends_on:
-      agent:
+      factory:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/nginx-health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/nginx-health"]
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 5s
 
-  # ── API: Express proxy + agent spawn orchestrator ──────────────────────────
-  api:
+  # ── Factory: Agent Factory backend (FastAPI) ───────────────────────────────
+  factory:
     build:
-      context: ./services/api
+      context: ./services/factory
       dockerfile: Dockerfile
-    container_name: nvnnnbt-api
+    container_name: nvnnnbt-factory
     restart: unless-stopped
     ports:
-      - "${API_PORT:-4000}:4000"
+      - "${FACTORY_PORT:-4000}:4000"
     environment:
-      PORT: 4000
       AGENT_URL: http://agent:6161
-      API_KEY: ${API_KEY:-}
-      DB_PATH: /app/data/nanobot.db
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      DB_PATH: /app/data/factory.db
       # HOST_PROJECT_PATH: absolute path to this folder on the HOST machine.
       # Required for spawning agents (bind-mounts workspace folders).
-      # Example: HOST_PROJECT_PATH=/home/derek/nvnNNBT
+      # Example: HOST_PROJECT_PATH=E:/nvnNNBT
       HOST_PROJECT_PATH: ${HOST_PROJECT_PATH:-}
       AGENT_IMAGE: nvnnnbt-agent:latest
       COMPOSE_NETWORK: nvnnnbt-net
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      FACTORY_TOKEN: ${FACTORY_TOKEN:-}
     volumes:
       - ./data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock
@@ -49,11 +48,11 @@ services:
       agent:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1))"]
-      interval: 10s
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4000/health')"]
+      interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 15s
 
   # ── Nanobot agent: chat server + lab ────────────────────────────────────
   # The image is tagged so spawned containers (via API) can reference it.

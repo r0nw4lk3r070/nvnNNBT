@@ -59,6 +59,7 @@ async def run() -> None:
     app.router.add_get("/",                handle_index)
     app.router.add_get("/lab",             handle_lab_index)
     app.router.add_get("/health",          handle_health)
+    app.router.add_get("/api/health",      handle_health)   # alias for nginx /api/ proxy
     app.router.add_post("/chat",           handle_chat)
     app.router.add_post("/lab/chat",       handle_lab_chat)
     app.router.add_get("/api/models",      handle_models)
