@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>nvnNNBT — Agents</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0d0d;
+      --surface:   #161616;
+      --border:    #2a2a2a;
+      --text:      #e0e0e0;
+      --muted:     #666;
+      --accent:    #7c6af7;
+      --green:     #3fb950;
+      --yellow:    #d29922;
+      --red:       #f85149;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    /* ── Nav ── */
+    nav {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      padding: .75rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    nav .logo { font-weight: 700; font-size: 1rem; color: var(--text); }
+    nav a { color: var(--muted); text-decoration: none; font-size: .875rem; }
+    nav a:hover { color: var(--text); }
+    nav a.active { color: var(--accent); }
+
+    /* ── Layout ── */
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+    h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: 1.5rem; }
+
+    /* ── Spawn form ── */
+    .spawn-form {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    .spawn-form h2 { font-size: .875rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 1rem; }
+    .fields { display: flex; gap: .75rem; flex-wrap: wrap; }
+    .field { display: flex; flex-direction: column; gap: .3rem; flex: 1; min-width: 160px; }
+    .field label { font-size: .75rem; color: var(--muted); }
+    .field input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: .5rem .75rem;
+      color: var(--text);
+      font-size: .875rem;
+      outline: none;
+    }
+    .field input:focus { border-color: var(--accent); }
+    .spawn-actions { margin-top: 1rem; display: flex; align-items: center; gap: 1rem; }
+    .btn {
+      padding: .45rem 1rem;
+      border-radius: 6px;
+      border: none;
+      font-size: .875rem;
+      cursor: pointer;
+      font-weight: 500;
+      transition: opacity .15s;
+    }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { opacity: .85; }
+    .btn-sm { padding: .3rem .7rem; font-size: .8rem; }
+    .btn-stop   { background: var(--yellow); color: #000; }
+    .btn-start  { background: var(--green);  color: #000; }
+    .btn-delete { background: transparent; color: var(--red); border: 1px solid var(--red); }
+    .btn-stop:hover:not(:disabled),
+    .btn-start:hover:not(:disabled),
+    .btn-delete:hover:not(:disabled) { opacity: .75; }
+
+    .error-msg { color: var(--red); font-size: .8rem; }
+
+    /* ── Agent table ── */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: .75rem;
+    }
+    .section-header h2 { font-size: .875rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+    .refresh-note { font-size: .75rem; color: var(--muted); }
+
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      text-align: left;
+      font-size: .75rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      padding: .5rem .75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr { border-bottom: 1px solid var(--border); }
+    tbody tr:hover { background: var(--surface); }
+    tbody td { padding: .65rem .75rem; vertical-align: middle; }
+
+    .badge {
+      display: inline-block;
+      padding: .2rem .55rem;
+      border-radius: 20px;
+      font-size: .72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .badge-running { background: #1a2e1a; color: var(--green); }
+    .badge-stopped { background: #2e2a16; color: var(--yellow); }
+    .badge-removed { background: #2e1a1a; color: var(--red); }
+    .badge-unknown { background: #1e1e1e; color: var(--muted); }
+
+    .actions { display: flex; gap: .4rem; }
+
+    .empty { color: var(--muted); font-size: .875rem; padding: 2rem 0; text-align: center; }
+
+    .port-link { color: var(--accent); text-decoration: none; font-size: .8rem; }
+    .port-link:hover { text-decoration: underline; }
+
+    .spinner {
+      display: inline-block;
+      width: 12px; height: 12px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body x-data="agentsApp()" x-init="init()">
+
+  <nav>
+    <span class="logo">nvnNNBT</span>
+    <a href="/">Chat</a>
+    <a href="/lab">Lab</a>
+    <a href="/agents" class="active">Agents</a>
+  </nav>
+
+  <main>
+    <h1>Agent management</h1>
+
+    <!-- Spawn form -->
+    <div class="spawn-form">
+      <h2>Spawn new agent</h2>
+      <div class="fields">
+        <div class="field">
+          <label>Slug <span style="color:var(--muted)">(lowercase, no spaces)</span></label>
+          <input type="text" x-model="form.slug" placeholder="my-agent" @keydown.enter="spawn()">
+        </div>
+        <div class="field">
+          <label>Display name</label>
+          <input type="text" x-model="form.display_name" placeholder="My Agent" @keydown.enter="spawn()">
+        </div>
+        <div class="field">
+          <label>Model</label>
+          <input type="text" x-model="form.model" placeholder="qwen3:1.7b" @keydown.enter="spawn()">
+        </div>
+      </div>
+      <div class="spawn-actions">
+        <button class="btn btn-primary" @click="spawn()" :disabled="spawning">
+          <template x-if="spawning"><span class="spinner"></span></template>
+          <template x-if="!spawning">Spawn</template>
+        </button>
+        <span class="error-msg" x-text="spawnError"></span>
+      </div>
+    </div>
+
+    <!-- Agent list -->
+    <div class="section-header">
+      <h2>Running agents</h2>
+      <span class="refresh-note">auto-refreshes every 5s</span>
+    </div>
+
+    <template x-if="agents.length === 0 && !loading">
+      <div class="empty">No agents spawned yet.</div>
+    </template>
+
+    <template x-if="agents.length > 0">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Model</th>
+            <th>Port</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="a in agents" :key="a.slug">
+            <tr>
+              <td>
+                <div style="font-weight:600" x-text="a.display_name"></div>
+                <div style="color:var(--muted);font-size:.75rem" x-text="a.slug"></div>
+              </td>
+              <td x-text="a.model"></td>
+              <td>
+                <a class="port-link" :href="'http://localhost:' + a.port" target="_blank" x-text="a.port"></a>
+              </td>
+              <td>
+                <span class="badge"
+                  :class="{
+                    'badge-running': a.status === 'running',
+                    'badge-stopped': a.status === 'stopped' || a.status === 'exited',
+                    'badge-removed': a.status === 'removed',
+                    'badge-unknown': !['running','stopped','exited','removed'].includes(a.status)
+                  }"
+                  x-text="a.status">
+                </span>
+              </td>
+              <td>
+                <div class="actions">
+                  <template x-if="a.status === 'running'">
+                    <button class="btn btn-sm btn-stop" @click="stopAgent(a.slug)">Stop</button>
+                  </template>
+                  <template x-if="a.status !== 'running'">
+                    <button class="btn btn-sm btn-start" @click="startAgent(a.slug)">Start</button>
+                  </template>
+                  <button class="btn btn-sm btn-delete" @click="deleteAgent(a.slug)">Delete</button>
+                </div>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </template>
+  </main>
+
+  <script>
+    function agentsApp() {
+      return {
+        agents:     [],
+        loading:    false,
+        spawning:   false,
+        spawnError: '',
+        form:       { slug: '', display_name: '', model: 'qwen3:1.7b' },
+        _timer:     null,
+
+        async init() {
+          await this.load()
+          this._timer = setInterval(() => this.load(), 5000)
+        },
+
+        async load() {
+          try {
+            const r = await fetch('/api/agents')
+            if (!r.ok) return
+            const data = await r.json()
+            this.agents = data.agents ?? []
+          } catch { /* ignore network blip */ }
+        },
+
+        async spawn() {
+          this.spawnError = ''
+          const { slug, display_name, model } = this.form
+          if (!slug || !display_name) {
+            this.spawnError = 'Slug and display name are required.'
+            return
+          }
+          this.spawning = true
+          try {
+            const r = await fetch('/api/agents', {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body:    JSON.stringify({ slug, display_name, model: model || 'qwen3:1.7b' }),
+            })
+            const data = await r.json()
+            if (!r.ok) { this.spawnError = data.error ?? 'Spawn failed.'; return }
+            this.form = { slug: '', display_name: '', model: 'qwen3:1.7b' }
+            await this.load()
+          } catch (e) {
+            this.spawnError = 'Network error.'
+          } finally {
+            this.spawning = false
+          }
+        },
+
+        async stopAgent(slug) {
+          await fetch(`/api/agents/${slug}/stop`, { method: 'POST' })
+          await this.load()
+        },
+
+        async startAgent(slug) {
+          await fetch(`/api/agents/${slug}/start`, { method: 'POST' })
+          await this.load()
+        },
+
+        async deleteAgent(slug) {
+          if (!confirm(`Delete agent "${slug}"? This stops and removes the container.`)) return
+          await fetch(`/api/agents/${slug}`, { method: 'DELETE' })
+          await this.load()
+        },
+      }
+    }
+  </script>
+</body>
+</html>

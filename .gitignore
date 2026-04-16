@@ -1,0 +1,11 @@
+.env
+workspace/
+data/workspaces/
+skill-sets/*/memory/chats/
+skill-sets/*/sessions/
+__pycache__/
+*.pyc
+*.pyo
+*.log
+*.db-shm
+*.db-wal
