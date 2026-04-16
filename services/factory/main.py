@@ -16,6 +16,8 @@ from database import DB_PATH, init_db
 from routers import events as events_router
 from routers import workspaces as workspaces_router
 from routers import system as system_router
+from routers import sandbox as sandbox_router
+from routers import agents as agents_router
 
 # ── Config ────────────────────────────────────────────────────────────────────
 AGENT_URL     = os.environ.get("AGENT_URL",       "http://agent:6161")
@@ -41,6 +43,8 @@ app = FastAPI(title="Agent Factory", version="0.1.0", lifespan=lifespan)
 app.include_router(events_router.router)
 app.include_router(workspaces_router.router)
 app.include_router(system_router.router)
+app.include_router(sandbox_router.router)
+app.include_router(agents_router.router)
 
 
 # ── Health ────────────────────────────────────────────────────────────────────

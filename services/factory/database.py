@@ -133,3 +133,10 @@ def init_db(path: Path = DB_PATH) -> None:
     con.executescript(_SCHEMA)
     con.commit()
     con.close()
+
+
+def get_conn(path: Path = DB_PATH) -> sqlite3.Connection:
+    """Return a sqlite3 connection with row_factory set."""
+    con = sqlite3.connect(path)
+    con.row_factory = sqlite3.Row
+    return con

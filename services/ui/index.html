@@ -675,35 +675,249 @@
         </div>
 
         <!-- ── LAB ────────────────────────────────────────────────── -->
-        <div class="section" x-show="$store.f.activeTab?.type === 'lab'">
-          <div class="sec-head">
-            <div class="sec-title">Lab</div>
-            <div class="sec-sub">Build skill-sets. Define identity, add skills, test in sandbox, tag a version, spawn.</div>
+        <div class="section" x-show="$store.f.activeTab?.type === 'lab'"
+             x-data="labSection()">
+          <!-- header row -->
+          <div class="sec-head" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+            <div>
+              <div class="sec-title">Lab</div>
+              <div class="sec-sub">Build skill-sets. Define identity, add skills, test in sandbox, tag a version, spawn.</div>
+            </div>
+            <button class="btn btn-primary" @click="newWorkspace()" :disabled="busy">+ New workspace</button>
           </div>
-          <div class="card">
-            <h3>Workspace editor <span class="phase">Phase 2</span></h3>
-            <p>Create from <code style="font-size:.75rem;color:var(--muted2)">_template</code> or clone from remote. Edit SOUL, AGENTS, TOOLS, HEARTBEAT, USER, skills, MCP config, knowledge inbox.</p>
+
+          <!-- workspace picker -->
+          <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:1.25rem;align-items:center">
+            <span style="font-size:.72rem;color:var(--muted);margin-right:.2rem">Workspaces:</span>
+            <span x-show="loading" class="spinner"></span>
+            <template x-for="ws in workspaces" :key="ws.slug">
+              <button style="padding:.2rem .75rem;border-radius:20px;border:1px solid;font-size:.75rem;cursor:pointer;font-family:inherit;transition:all .12s"
+                      :style="active?.slug === ws.slug
+                        ? 'background:var(--accent-dim);border-color:var(--accent-border);color:var(--text)'
+                        : 'background:transparent;border-color:var(--border);color:var(--muted2)'"
+                      @click="loadWorkspace(ws.slug)"
+                      x-text="ws.slug">
+              </button>
+            </template>
+            <span x-show="workspaces.length === 0 && !loading"
+                  style="font-size:.75rem;color:var(--muted)">
+              No workspaces yet. Click "+ New workspace" to create one.
+            </span>
           </div>
-          <div class="card">
-            <h3>Sandbox test panel <span class="phase">Phase 2</span></h3>
-            <p>Load a workspace into an ephemeral container, chat with it, iterate. Each Lab tab runs its own isolated container. Promote to spawn when behaviour is correct.</p>
-          </div>
-          <div class="card">
-            <h3>Version control <span class="phase">Phase 4</span></h3>
-            <p>Tag workspace snapshots with git. Browse history, diff any two versions line by line, restore, push to remote for collaboration.</p>
+
+          <!-- editor — shown only when a workspace is active -->
+          <div x-show="active">
+
+            <!-- workspace header bar -->
+            <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.75rem">
+              <span style="font-size:.95rem;font-weight:600" x-text="active?.slug"></span>
+              <span x-show="busy" class="spinner"></span>
+              <div style="flex:1"></div>
+              <button class="btn btn-ghost" style="font-size:.72rem"
+                      @click="tagVersion()" :disabled="busy">Tag version</button>
+              <button class="btn btn-ghost"
+                      style="font-size:.72rem;color:var(--red);border-color:var(--red)"
+                      @click="deleteWorkspace(active?.slug)"
+                      :disabled="busy || active?.slug === '_template'">Delete</button>
+            </div>
+
+            <!-- file tab bar -->
+            <div style="display:flex;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none">
+              <template x-for="fn in identityFiles" :key="fn">
+                <div style="padding:.3rem .85rem;cursor:pointer;font-size:.78rem;white-space:nowrap;border-bottom:2px solid transparent;transition:color .1s,border-color .1s"
+                     :style="activeFile === fn
+                       ? 'color:var(--text);border-bottom-color:var(--accent)'
+                       : 'color:var(--muted)'"
+                     @click="switchFile(fn)"
+                     x-text="fn.replace('.md','')">
+                </div>
+              </template>
+              <div style="padding:.3rem .85rem;cursor:pointer;font-size:.78rem;white-space:nowrap;border-bottom:2px solid transparent;transition:color .1s,border-color .1s"
+                   :style="activeFile === '_skills'
+                     ? 'color:var(--text);border-bottom-color:var(--accent)'
+                     : 'color:var(--muted)'"
+                   @click="switchFile('_skills')">
+                Skills<span x-show="skills.length > 0"
+                            style="font-size:.65rem;color:var(--muted);margin-left:.3rem"
+                            x-text="`(${skills.length})`"></span>
+              </div>
+            </div>
+
+            <!-- identity file editor -->
+            <div x-show="activeFile !== '_skills'"
+                 style="background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:.75rem">
+              <textarea style="width:100%;height:300px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.6rem .8rem;color:var(--text);font-family:'Cascadia Code','Fira Code',Consolas,monospace;font-size:.75rem;resize:vertical;outline:none;transition:border-color .12s;line-height:1.6"
+                        @focus="$el.style.borderColor='var(--accent)'"
+                        @blur="$el.style.borderColor='var(--border)'"
+                        x-model="fileContent">
+              </textarea>
+              <div style="display:flex;justify-content:flex-end;align-items:center;gap:.5rem;margin-top:.5rem">
+                <span x-show="fileSaved" style="font-size:.72rem;color:var(--green)">Saved ✓</span>
+                <button class="btn btn-primary" style="font-size:.75rem"
+                        @click="saveFile()" :disabled="busy">Save</button>
+              </div>
+            </div>
+
+            <!-- skills editor -->
+            <div x-show="activeFile === '_skills'"
+                 style="background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:.75rem">
+              <div style="display:flex;justify-content:flex-end;margin-bottom:.6rem">
+                <button class="btn btn-primary" style="font-size:.75rem"
+                        @click="addSkill()" :disabled="busy">+ Add skill</button>
+              </div>
+              <div x-show="skillsLoading" style="color:var(--muted);font-size:.78rem">Loading skills…</div>
+              <div x-show="skills.length === 0 && !skillsLoading"
+                   style="color:var(--muted);font-size:.78rem;padding:.25rem 0">
+                No skills yet. Click "+ Add skill" above.
+              </div>
+              <div style="display:flex;flex-direction:column;gap:.5rem">
+                <template x-for="sk in skills" :key="sk.name">
+                  <div style="background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:.55rem .85rem;display:flex;align-items:flex-start;gap:.6rem">
+                    <div style="flex:1;min-width:0">
+                      <div style="font-size:.8rem;font-weight:600;margin-bottom:.2rem" x-text="sk.name"></div>
+                      <div style="font-size:.72rem;color:var(--muted);word-break:break-word;white-space:pre-wrap;max-height:72px;overflow:hidden"
+                           x-text="(sk.content || '').slice(0, 200)"></div>
+                    </div>
+                    <button class="btn btn-ghost"
+                            style="font-size:.7rem;padding:.2rem .5rem;flex-shrink:0;color:var(--red);border-color:var(--red)"
+                            @click="deleteSkill(sk.name)" :disabled="busy">Delete</button>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- sandbox panel -->
+            <div style="border:1px solid var(--border);border-radius:8px;background:var(--surface);margin-top:1rem">
+              <div style="display:flex;align-items:center;gap:.6rem;padding:.5rem .9rem;cursor:pointer"
+                   :style="sandboxOpen ? 'border-bottom:1px solid var(--border)' : ''"
+                   @click="sandboxOpen = !sandboxOpen">
+                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                     style="width:11px;height:11px;flex-shrink:0;transition:transform .15s"
+                     :style="sandboxOpen ? 'transform:rotate(0)' : 'transform:rotate(-90deg)'">
+                  <path d="M2 4l4 4 4-4"/>
+                </svg>
+                <span style="font-size:.82rem;font-weight:600">Sandbox</span>
+                <div style="width:7px;height:7px;border-radius:50%;flex-shrink:0;transition:background .3s"
+                     :style="`background:${sandboxStatus === 'loaded' ? 'var(--green)' : sandboxStatus === 'loading' ? 'var(--yellow)' : 'var(--muted)'}`">
+                </div>
+                <span style="font-size:.72rem;color:var(--muted)" x-text="sandboxStatus"></span>
+                <div style="flex:1"></div>
+                <button x-show="sandboxStatus === 'idle'" class="btn btn-primary" style="font-size:.72rem"
+                        @click.stop="sandboxOpen = true; loadSandbox()">Load</button>
+                <button x-show="sandboxStatus !== 'idle'" class="btn btn-ghost" style="font-size:.72rem"
+                        @click.stop="unloadSandbox()" :disabled="sandboxStatus === 'loading'">Unload</button>
+              </div>
+              <div x-show="sandboxOpen" style="padding:.65rem .9rem;display:flex;flex-direction:column;gap:.4rem">
+                <div style="height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:.3rem;scrollbar-width:thin;scrollbar-color:var(--border) transparent"
+                     x-ref="sbMsgs">
+                  <template x-if="sbMessages.length === 0">
+                    <p style="color:var(--muted);font-size:.75rem;text-align:center;padding:.75rem 0">
+                      Load a workspace to chat with it in isolation.
+                    </p>
+                  </template>
+                  <template x-for="(m, i) in sbMessages" :key="i">
+                    <div style="max-width:96%;padding:.35rem .65rem;border-radius:7px;font-size:.75rem;line-height:1.55;word-break:break-word;white-space:pre-wrap"
+                         :style="m.role === 'user'
+                           ? 'align-self:flex-end;background:var(--accent-dim);border:1px solid var(--accent-border)'
+                           : 'align-self:flex-start;background:var(--bg);border:1px solid var(--border)'"
+                         x-text="m.content">
+                    </div>
+                  </template>
+                </div>
+                <div style="display:flex;gap:.4rem">
+                  <input type="text"
+                         style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .65rem;color:var(--text);font-size:.78rem;font-family:inherit;outline:none;transition:border-color .12s"
+                         x-model="sbDraft"
+                         placeholder="Message sandbox…"
+                         :disabled="sandboxStatus !== 'loaded' || sbStreaming"
+                         @keydown.enter="sbSend()"
+                         @focus="$el.style.borderColor='var(--accent)'"
+                         @blur="$el.style.borderColor='var(--border)'">
+                  <button class="btn btn-primary" style="font-size:.75rem"
+                          @click="sbSend()"
+                          :disabled="sandboxStatus !== 'loaded' || sbStreaming || !sbDraft.trim()">Send</button>
+                </div>
+              </div>
+            </div>
+
+          </div><!-- /editor area -->
+
+          <!-- nothing selected yet -->
+          <div x-show="!active && !loading && workspaces.length > 0"
+               style="color:var(--muted);font-size:.82rem;padding:.5rem 0">
+            Select a workspace above to start editing.
           </div>
         </div>
 
         <!-- ── AGENTS ──────────────────────────────────────────────── -->
-        <div class="section" x-show="$store.f.activeTab?.type === 'agents'">
-          <div class="sec-head">
-            <div class="sec-title">Agents</div>
-            <div class="sec-sub">Registry of spawned production agents. Start, stop, delete, chat.</div>
+        <div class="section" x-show="$store.f.activeTab?.type === 'agents'"
+             x-data="agentsSection()">
+          <div class="sec-head" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+            <div>
+              <div class="sec-title">Agents</div>
+              <div class="sec-sub">Registry of spawned production agents. Start, stop, delete.</div>
+            </div>
+            <button class="btn btn-primary" @click="spawnOpen = !spawnOpen">+ Spawn agent</button>
           </div>
-          <div class="card">
-            <h3>Agent registry <span class="phase">Phase 2</span></h3>
-            <p>Each spawned agent runs in its own container with its own workspace, knowledge base, and port allocation. Start, stop, delete from here. Click an agent to open a proxied chat in a new tab.</p>
+
+          <!-- spawn form -->
+          <div x-show="spawnOpen"
+               style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.9rem 1.1rem;margin-bottom:1rem">
+            <div style="font-size:.85rem;font-weight:600;margin-bottom:.6rem">Spawn new agent</div>
+            <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:flex-end">
+              <div style="display:flex;flex-direction:column;gap:.25rem">
+                <label style="font-size:.7rem;color:var(--muted)">Workspace</label>
+                <select style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.3rem .65rem;color:var(--text);font-size:.78rem;font-family:inherit;outline:none;min-width:160px"
+                        x-model="spawnSlug">
+                  <option value="">— select workspace —</option>
+                  <template x-for="ws in workspaces" :key="ws.slug">
+                    <option :value="ws.slug" x-text="ws.slug"></option>
+                  </template>
+                </select>
+              </div>
+              <button class="btn btn-primary" style="font-size:.78rem"
+                      @click="spawn()" :disabled="!spawnSlug || busy">Spawn</button>
+              <button class="btn btn-ghost" style="font-size:.78rem"
+                      @click="spawnOpen = false; spawnError = ''">Cancel</button>
+            </div>
+            <div x-show="spawnError"
+                 style="font-size:.75rem;color:var(--red);margin-top:.4rem"
+                 x-text="spawnError"></div>
           </div>
+
+          <!-- agent list -->
+          <div x-show="loading" style="color:var(--muted);font-size:.78rem">Loading…</div>
+          <template x-if="!loading && agents.length === 0">
+            <div class="card">
+              <p style="color:var(--muted)">No agents spawned. Use the spawn form above.</p>
+            </div>
+          </template>
+          <template x-for="ag in agents" :key="ag.slug">
+            <div class="card" style="display:flex;align-items:center;gap:.9rem;padding:.75rem 1.1rem">
+              <div style="width:8px;height:8px;border-radius:50%;flex-shrink:0"
+                   :style="`background:${ag.status === 'running' ? 'var(--green)' : ag.status === 'stopped' ? 'var(--muted)' : 'var(--yellow)'}`">
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:.85rem;font-weight:600" x-text="ag.slug"></div>
+                <div style="font-size:.72rem;color:var(--muted);margin-top:.15rem">
+                  <span x-text="ag.workspace_slug || 'unknown workspace'"></span>
+                  <span x-show="ag.gateway_port" x-text="' · port ' + ag.gateway_port"></span>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:.4rem;flex-shrink:0">
+                <span style="font-size:.7rem;padding:.15rem .5rem;border-radius:20px;border:1px solid"
+                      :style="ag.status === 'running'
+                        ? 'color:var(--green);border-color:var(--green)'
+                        : 'color:var(--muted);border-color:var(--border)'"
+                      x-text="ag.status || 'unknown'"></span>
+                <button x-show="ag.status === 'running'" class="btn btn-ghost" style="font-size:.72rem"
+                        @click="stopAgent(ag.slug)" :disabled="busy">Stop</button>
+                <button class="btn btn-ghost"
+                        style="font-size:.72rem;color:var(--red);border-color:var(--red)"
+                        @click="deleteAgent(ag.slug)" :disabled="busy">Delete</button>
+              </div>
+            </div>
+          </template>
         </div>
 
         <!-- ── TEAMS ───────────────────────────────────────────────── -->
@@ -1038,6 +1252,317 @@
             this.events = d.events || []
           }
         } catch {}
+      },
+    }
+  }
+
+  // ── Lab section ───────────────────────────────────────────────────────────
+  function labSection() {
+    return {
+      workspaces: [],
+      loading: false,
+      busy: false,
+      active: null,
+      activeFile: 'SOUL.md',
+      fileContent: '',
+      fileSaved: false,
+      identityFiles: ['SOUL.md', 'AGENTS.md', 'TOOLS.md', 'HEARTBEAT.md', 'USER.md'],
+      skills: [],
+      skillsLoading: false,
+      sandboxOpen: false,
+      sandboxStatus: 'idle',
+      sbMessages: [],
+      sbDraft: '',
+      sbStreaming: false,
+      _sbHistory: [],
+
+      async init() {
+        await this.fetchWorkspaces();
+      },
+
+      async fetchWorkspaces() {
+        this.loading = true;
+        try {
+          const r = await fetch('/api/factory/workspaces');
+          if (r.ok) { const d = await r.json(); this.workspaces = d.workspaces || []; }
+        } catch {}
+        this.loading = false;
+      },
+
+      async loadWorkspace(slug) {
+        if (this.busy) return;
+        this.busy = true;
+        try {
+          const r = await fetch(`/api/factory/workspaces/${slug}`);
+          if (r.ok) {
+            const d = await r.json();
+            this.active = d;
+            this.activeFile = 'SOUL.md';
+            this.fileContent = d.files?.['SOUL.md'] || '';
+            this.fileSaved = false;
+            await this.fetchSkills(slug);
+          }
+        } catch {}
+        this.busy = false;
+      },
+
+      switchFile(fn) {
+        if (fn === '_skills') { this.activeFile = '_skills'; return; }
+        this.fileContent = this.active?.files?.[fn] ?? '';
+        this.activeFile = fn;
+        this.fileSaved = false;
+      },
+
+      async saveFile() {
+        if (!this.active || this.activeFile === '_skills') return;
+        this.busy = true;
+        try {
+          const r = await fetch(
+            `/api/factory/workspaces/${this.active.slug}/files/${encodeURIComponent(this.activeFile)}`,
+            { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ content: this.fileContent }) }
+          );
+          if (r.ok) {
+            this.fileSaved = true;
+            setTimeout(() => { this.fileSaved = false; }, 2500);
+            if (this.active.files) this.active.files[this.activeFile] = this.fileContent;
+          }
+        } catch {}
+        this.busy = false;
+      },
+
+      async fetchSkills(slug) {
+        this.skillsLoading = true;
+        try {
+          const r = await fetch(`/api/factory/workspaces/${slug}/skills`);
+          if (r.ok) { const d = await r.json(); this.skills = d.skills || []; }
+        } catch {}
+        this.skillsLoading = false;
+      },
+
+      async addSkill() {
+        if (!this.active) return;
+        const name = prompt('Skill name (e.g. python_coder):');
+        if (!name?.trim()) return;
+        const content = prompt(`Content for skill "${name.trim()}":`);
+        if (content === null) return;
+        this.busy = true;
+        try {
+          const r = await fetch(
+            `/api/factory/workspaces/${this.active.slug}/skills/${encodeURIComponent(name.trim())}`,
+            { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ content }) }
+          );
+          if (r.ok) await this.fetchSkills(this.active.slug);
+        } catch {}
+        this.busy = false;
+      },
+
+      async deleteSkill(name) {
+        if (!this.active || !confirm(`Delete skill "${name}"?`)) return;
+        this.busy = true;
+        try {
+          const r = await fetch(
+            `/api/factory/workspaces/${this.active.slug}/skills/${encodeURIComponent(name)}`,
+            { method: 'DELETE' }
+          );
+          if (r.ok) this.skills = this.skills.filter(s => s.name !== name);
+        } catch {}
+        this.busy = false;
+      },
+
+      async newWorkspace() {
+        const slug = prompt('Workspace slug (lowercase letters, numbers, hyphens):');
+        if (!slug?.trim()) return;
+        this.busy = true;
+        try {
+          const r = await fetch('/api/factory/workspaces', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ slug: slug.trim() }),
+          });
+          if (r.ok) {
+            await this.fetchWorkspaces();
+            await this.loadWorkspace(slug.trim());
+          } else {
+            const d = await r.json().catch(() => ({}));
+            alert('Error: ' + (d.detail || r.statusText));
+          }
+        } catch (e) { alert('Error: ' + e.message); }
+        this.busy = false;
+      },
+
+      async deleteWorkspace(slug) {
+        if (!slug || !confirm(`Delete workspace "${slug}"? This cannot be undone.`)) return;
+        this.busy = true;
+        try {
+          const r = await fetch(`/api/factory/workspaces/${slug}`, { method: 'DELETE' });
+          if (r.ok) {
+            this.active = null; this.skills = [];
+            this.sbMessages = []; this._sbHistory = [];
+            this.sandboxStatus = 'idle';
+            await this.fetchWorkspaces();
+          }
+        } catch {}
+        this.busy = false;
+      },
+
+      async tagVersion() {
+        if (!this.active) return;
+        const tag = prompt('Version tag (e.g. v1.0):');
+        if (!tag?.trim()) return;
+        this.busy = true;
+        try {
+          const r = await fetch(`/api/factory/workspaces/${this.active.slug}/versions`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tag: tag.trim() }),
+          });
+          if (r.ok) alert(`Tagged as ${tag.trim()}`);
+          else { const d = await r.json().catch(() => ({})); alert('Error: ' + (d.detail || r.statusText)); }
+        } catch (e) { alert('Error: ' + e.message); }
+        this.busy = false;
+      },
+
+      async loadSandbox() {
+        if (!this.active) return;
+        this.sandboxStatus = 'loading';
+        try {
+          const r = await fetch('/api/factory/sandbox/load', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ slug: this.active.slug }),
+          });
+          if (r.ok) {
+            this.sandboxStatus = 'loaded';
+            this.sbMessages = []; this._sbHistory = [];
+          } else {
+            this.sandboxStatus = 'idle';
+            const d = await r.json().catch(() => ({}));
+            alert('Sandbox load failed: ' + (d.detail || r.statusText));
+          }
+        } catch (e) { this.sandboxStatus = 'idle'; alert('Sandbox error: ' + e.message); }
+      },
+
+      async unloadSandbox() {
+        this.busy = true;
+        try { await fetch('/api/factory/sandbox/unload', { method: 'POST' }); } catch {}
+        this.sandboxStatus = 'idle';
+        this.sbMessages = []; this._sbHistory = [];
+        this.busy = false;
+      },
+
+      _scrollSb() {
+        this.$nextTick(() => { const el = this.$refs.sbMsgs; if (el) el.scrollTop = el.scrollHeight; });
+      },
+
+      async sbSend() {
+        const text = this.sbDraft.trim();
+        if (!text || this.sbStreaming || this.sandboxStatus !== 'loaded') return;
+        this.sbDraft = '';
+        this._sbHistory.push({ role: 'user', content: text });
+        this.sbMessages.push({ role: 'user', content: text });
+        const asst = { role: 'assistant', content: '' };
+        this.sbMessages.push(asst);
+        this.sbStreaming = true;
+        this._scrollSb();
+        try {
+          const r = await fetch('/api/factory/sandbox/chat', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: [...this._sbHistory] }),
+          });
+          if (!r.ok || !r.body) { asst.content = 'Error (' + r.status + ')'; this.sbStreaming = false; return; }
+          const reader = r.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const lines = buf.split('\n'); buf = lines.pop();
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              const raw = line.slice(6).trim();
+              if (raw === '[DONE]') break;
+              try {
+                const parsed = JSON.parse(raw);
+                const delta = parsed?.choices?.[0]?.delta?.content || parsed?.text || '';
+                if (delta) { asst.content += delta; this._scrollSb(); }
+              } catch {}
+            }
+          }
+          this._sbHistory.push({ role: 'assistant', content: asst.content });
+        } catch (e) { asst.content = 'Network error: ' + e.message; }
+        finally { this.sbStreaming = false; this._scrollSb(); }
+      },
+    }
+  }
+
+  // ── Agents section ─────────────────────────────────────────────────────────
+  function agentsSection() {
+    return {
+      agents: [],
+      workspaces: [],
+      loading: false,
+      busy: false,
+      spawnOpen: false,
+      spawnSlug: '',
+      spawnError: '',
+
+      async init() {
+        await Promise.all([this.fetchAgents(), this.fetchWorkspaces()]);
+        setInterval(() => this.fetchAgents(), 15000);
+      },
+
+      async fetchAgents() {
+        this.loading = true;
+        try {
+          const r = await fetch('/api/factory/agents');
+          if (r.ok) { const d = await r.json(); this.agents = d.agents || []; }
+        } catch {}
+        this.loading = false;
+      },
+
+      async fetchWorkspaces() {
+        try {
+          const r = await fetch('/api/factory/workspaces');
+          if (r.ok) { const d = await r.json(); this.workspaces = d.workspaces || []; }
+        } catch {}
+      },
+
+      async spawn() {
+        if (!this.spawnSlug) return;
+        this.busy = true; this.spawnError = '';
+        try {
+          const r = await fetch('/api/factory/agents', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ workspace_slug: this.spawnSlug }),
+          });
+          if (r.ok) {
+            this.spawnOpen = false; this.spawnSlug = '';
+            await this.fetchAgents();
+          } else {
+            const d = await r.json().catch(() => ({}));
+            this.spawnError = d.detail || ('Error ' + r.status);
+          }
+        } catch (e) { this.spawnError = e.message; }
+        this.busy = false;
+      },
+
+      async stopAgent(slug) {
+        this.busy = true;
+        try {
+          const r = await fetch(`/api/factory/agents/${slug}/stop`, { method: 'POST' });
+          if (r.ok) await this.fetchAgents();
+        } catch {}
+        this.busy = false;
+      },
+
+      async deleteAgent(slug) {
+        if (!confirm(`Delete agent "${slug}"?`)) return;
+        this.busy = true;
+        try {
+          const r = await fetch(`/api/factory/agents/${slug}`, { method: 'DELETE' });
+          if (r.ok) this.agents = this.agents.filter(a => a.slug !== slug);
+        } catch {}
+        this.busy = false;
       },
     }
   }
