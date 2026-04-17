@@ -9,6 +9,9 @@ workspace/memory/lab_state.json
 data/workspaces/*/memory/history.jsonl
 data/workspaces/*/sessions/
 data/workspaces/*/knowledge/vectors.db
+workspace/workspaces/*/memory/history.jsonl
+workspace/workspaces/*/sessions/
+workspace/workspaces/*/knowledge/vectors.db
 skill-sets/*/memory/chats/
 skill-sets/*/sessions/
 __pycache__/
