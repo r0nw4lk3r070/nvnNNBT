@@ -7,6 +7,29 @@ This document is the authoritative source for what nvnNNBT is, what it will beco
 
 ---
 
+## What's live now (Phase 2 — April 2026)
+
+Three services running in Docker Compose:
+
+| Service | Stack | Port | Status |
+|---|---|---|---|
+| `ui` | nginx + Alpine.js | 3000 | ✅ Live |
+| `factory` | FastAPI (Python) | 4000 | ✅ Live |
+| `agent` | aiohttp (Python) | 6161 | ✅ Live |
+
+**Implemented:**
+- ART assistant (agent service, `AGENT_MODE=art`) — streaming chat, lab UI, settings
+- Factory management UI — workspace list, agent registry
+- **Solo agent spawn** — factory spawns `nvnnnbt-agent:latest` as a sibling container with `AGENT_MODE=production`, assigned chat port from band 4330–4399
+- **Standalone agent web UI** — spawned agents serve their own dark teal interface at `http://localhost:{chat_port}/`
+- Agent settings panel — reads/writes `config.json` in the workspace
+- SQLite agent registry (`data/nanobot.db`) with live Docker status sync
+- Workspace `config.json` — controls model and provider per-workspace
+
+**Next up (Phase 3+):** Lab sandbox, Arena testing, team spawn, benchmark, export.
+
+---
+
 ## What this is
 
 An **Agent Factory** is a platform where you build, test, and deploy AI agents and agent teams. You start with an idea. You define a skill-set and persona. You test it in a sandbox. You spawn it as a live container. Teams of agents get shared knowledge and pipelines. When it works, you export it.
