@@ -2,7 +2,9 @@
 workspace/memory/
 workspace/sessions/
 workspace/memory/history.jsonl
-data/workspaces/
+data/workspaces/*/memory/history.jsonl
+data/workspaces/*/sessions/
+data/workspaces/*/knowledge/vectors.db
 skill-sets/*/memory/chats/
 skill-sets/*/sessions/
 __pycache__/
