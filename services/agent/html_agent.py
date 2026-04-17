@@ -284,7 +284,7 @@ function formatAssistant(text) {
     .replace(/`([^`]+)`/g,       (_, c) => `<code>${esc(c)}</code>`)
     .replace(/\*\*(.+?)\*\*/g,   (_, c) => `<strong>${c}</strong>`)
     .replace(/\*(.+?)\*/g,       (_, c) => `<em>${c}</em>`)
-    .replace(/\n/g, '<br>');
+    .replace(/\\n/g, '<br>');
 }
 
 function scrollBottom() {
