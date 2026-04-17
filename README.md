@@ -88,7 +88,7 @@ OLLAMA_BASE_URL=http://ollama:11434
 |---|---|---|
 | `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | Ollama endpoint for the agent |
 | `GROK_API_KEY` | *(empty)* | xAI key — leave empty if not using Grok |
-| `HOST_PROJECT_PATH` | `e:/nvnNNBT` | Host path for volume mounts |
+| `HOST_PROJECT_PATH` | *(must set)* | Absolute host path to this folder — needed for agent spawning in Phase 2 |
 
 ---
 

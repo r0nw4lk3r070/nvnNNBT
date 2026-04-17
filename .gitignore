@@ -1,5 +1,7 @@
 .env
-workspace/
+workspace/memory/
+workspace/sessions/
+workspace/memory/history.jsonl
 data/workspaces/
 skill-sets/*/memory/chats/
 skill-sets/*/sessions/
