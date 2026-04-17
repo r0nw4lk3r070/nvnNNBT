@@ -15,11 +15,12 @@ def _load_config():
 
 def _make_provider(config):
     from nanobot.providers.openai_compat_provider import OpenAICompatProvider
+    import os
 
     model = config.agents.defaults.model
 
-    # Grok chat models → xAI API
-    if model.startswith("grok-") and not model.startswith("grok-imagine"):
+    # Grok image models → xAI API (before the chat model check)
+    if model.startswith("grok-imagine"):
         return OpenAICompatProvider(
             api_key       = _state.GROK_API_KEY,
             api_base      = _state.GROK_API_BASE,
@@ -27,27 +28,33 @@ def _make_provider(config):
             spec          = None,
         )
 
-    from nanobot.providers.registry import find_by_name
-    provider_name = config.get_provider_name(model)
-    p             = config.get_provider(model)
-    spec          = find_by_name(provider_name) if provider_name else None
-    backend       = spec.backend if spec else "openai_compat"
-
-    if backend == "openai_compat":
-        api_key  = (p.api_key  if p else "") or ""
-        # If no key in config, fall back to {PROVIDER_NAME}_API_KEY env var.
-        # This lets each machine set its own keys without editing config.json.
-        if not api_key and provider_name:
-            import os
-            api_key = os.environ.get(f"{provider_name.upper()}_API_KEY", "")
-        api_base = (p.api_base if p else None) or (spec.default_api_base if spec else None)
+    # Grok chat models → xAI API
+    if model.startswith("grok-"):
         return OpenAICompatProvider(
-            api_key       = api_key,
-            api_base      = api_base,
+            api_key       = _state.GROK_API_KEY,
+            api_base      = _state.GROK_API_BASE,
             default_model = model,
-            spec          = spec,
+            spec          = None,
         )
-    raise RuntimeError(f"Unsupported provider backend: {backend}")
+
+    # All other models (Ollama local + cloud) — read provider from our config.
+    # Ollama Desktop handles both local and :cloud suffix models at the same endpoint.
+    raw         = _state._read_config_raw()
+    providers   = raw.get("providers", {})
+    pname       = getattr(config.agents.defaults, "provider", None) or ""
+    p_cfg       = providers.get(pname) or providers.get("local") or {}
+
+    api_base    = p_cfg.get("apiBase") or p_cfg.get("api_base") or f"{_state.OLLAMA_BASE}/v1"
+    key_env     = p_cfg.get("apiKeyEnv", "")
+    api_key     = (os.environ.get(key_env, "") if key_env else "") or \
+                  p_cfg.get("apiKey", "") or p_cfg.get("api_key", "") or ""
+
+    return OpenAICompatProvider(
+        api_key       = api_key,
+        api_base      = api_base,
+        default_model = model,
+        spec          = None,
+    )
 
 
 async def _build_agent(config):

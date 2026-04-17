@@ -9,3 +9,4 @@ __pycache__/
 *.log
 *.db-shm
 *.db-wal
+data/factory.db
