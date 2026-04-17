@@ -23,6 +23,7 @@ from handlers import (
     handle_workspace_get_file, handle_workspace_put_file,
     handle_workspace_get_memory, handle_workspace_put_memory,
     handle_workspace_get_skills, handle_workspace_put_skill, handle_workspace_delete_skill,
+    handle_agent_status, handle_agent_settings_get, handle_agent_settings_put,
 )
 
 
@@ -94,6 +95,9 @@ async def run() -> None:
     app.router.add_get("/api/workspace/skills",          handle_workspace_get_skills)
     app.router.add_put("/api/workspace/skills/{name}",   handle_workspace_put_skill)
     app.router.add_delete("/api/workspace/skills/{name}",handle_workspace_delete_skill)
+    app.router.add_get("/api/status",                    handle_agent_status)
+    app.router.add_get("/api/settings",                  handle_agent_settings_get)
+    app.router.add_put("/api/settings",                  handle_agent_settings_put)
 
     runner = web.AppRunner(app)
     await runner.setup()

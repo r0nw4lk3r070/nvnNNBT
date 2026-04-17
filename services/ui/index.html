@@ -1038,12 +1038,18 @@
               <div style="display:flex;flex-direction:column;gap:.25rem">
                 <label style="font-size:.7rem;color:var(--muted)">Workspace</label>
                 <select style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.3rem .65rem;color:var(--text);font-size:.78rem;font-family:inherit;outline:none;min-width:160px"
-                        x-model="spawnSlug">
+                        x-model="spawnSlug" @change="onWorkspaceChange()">
                   <option value="">— select workspace —</option>
                   <template x-for="ws in workspaces" :key="ws.slug">
                     <option :value="ws.slug" x-text="ws.slug"></option>
                   </template>
                 </select>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:.25rem">
+                <label style="font-size:.7rem;color:var(--muted)">Model</label>
+                <input type="text"
+                       style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.3rem .65rem;color:var(--text);font-size:.78rem;font-family:monospace;outline:none;min-width:180px"
+                       x-model="spawnModel" placeholder="qwen3:1.7b">
               </div>
               <button class="btn btn-primary" style="font-size:.78rem"
                       @click="spawn()" :disabled="!spawnSlug || busy">Spawn</button>
@@ -1065,13 +1071,13 @@
           <template x-for="ag in agents" :key="ag.slug">
             <div class="card" style="display:flex;align-items:center;gap:.9rem;padding:.75rem 1.1rem">
               <div style="width:8px;height:8px;border-radius:50%;flex-shrink:0"
-                   :style="`background:${ag.status === 'running' ? 'var(--green)' : ag.status === 'stopped' ? 'var(--muted)' : 'var(--yellow)'}`">
+                   :style="{background: ag.status === 'running' ? 'var(--green)' : ag.status === 'stopped' || ag.status === 'exited' ? 'var(--muted)' : 'var(--yellow)'}">
               </div>
               <div style="flex:1;min-width:0">
                 <div style="font-size:.85rem;font-weight:600" x-text="ag.slug"></div>
                 <div style="font-size:.72rem;color:var(--muted);margin-top:.15rem">
-                  <span x-text="ag.workspace_slug || 'unknown workspace'"></span>
-                  <span x-show="ag.gateway_port" x-text="' · port ' + ag.gateway_port"></span>
+                  <span x-text="ag.model || '—'"></span>
+                  <span x-show="ag.chat_port" x-text="' · localhost:' + ag.chat_port"></span>
                 </div>
               </div>
               <div style="display:flex;align-items:center;gap:.4rem;flex-shrink:0">
@@ -1080,8 +1086,14 @@
                         ? 'color:var(--green);border-color:var(--green)'
                         : 'color:var(--muted);border-color:var(--border)'"
                       x-text="ag.status || 'unknown'"></span>
+                <a x-show="ag.status === 'running' && ag.chat_port"
+                   :href="'http://localhost:' + ag.chat_port + '/'"
+                   target="_blank"
+                   class="btn btn-ghost" style="font-size:.72rem;text-decoration:none">Open ↗</a>
                 <button x-show="ag.status === 'running'" class="btn btn-ghost" style="font-size:.72rem"
                         @click="stopAgent(ag.slug)" :disabled="busy">Stop</button>
+                <button x-show="ag.status === 'stopped' || ag.status === 'exited'" class="btn btn-ghost" style="font-size:.72rem"
+                        @click="startAgent(ag.slug)" :disabled="busy">Start</button>
                 <button class="btn btn-ghost"
                         style="font-size:.72rem;color:var(--red);border-color:var(--red)"
                         @click="deleteAgent(ag.slug)" :disabled="busy">Delete</button>
@@ -1634,6 +1646,7 @@
       busy: false,
       spawnOpen: false,
       spawnSlug: '',
+      spawnModel: 'qwen3:1.7b',
       spawnError: '',
 
       async init() {
@@ -1657,22 +1670,46 @@
         } catch {}
       },
 
+      onWorkspaceChange() {
+        const ws = this.workspaces.find(w => w.slug === this.spawnSlug);
+        if (ws && ws.model) this.spawnModel = ws.model;
+      },
+
       async spawn() {
         if (!this.spawnSlug) return;
+        // Check for already-running instance
+        const existing = this.agents.find(a => a.slug === this.spawnSlug && a.status === 'running');
+        if (existing) {
+          this.spawnError = `Agent "${this.spawnSlug}" is already running.`;
+          return;
+        }
         this.busy = true; this.spawnError = '';
         try {
           const r = await fetch('/api/factory/agents', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ workspace_slug: this.spawnSlug }),
+            body: JSON.stringify({ slug: this.spawnSlug, model: this.spawnModel || 'qwen3:1.7b' }),
           });
           if (r.ok) {
-            this.spawnOpen = false; this.spawnSlug = '';
+            this.spawnOpen = false; this.spawnSlug = ''; this.spawnModel = 'qwen3:1.7b';
             await this.fetchAgents();
           } else {
             const d = await r.json().catch(() => ({}));
             this.spawnError = d.detail || ('Error ' + r.status);
           }
         } catch (e) { this.spawnError = e.message; }
+        this.busy = false;
+      },
+
+      async startAgent(slug) {
+        this.busy = true;
+        try {
+          const r = await fetch(`/api/factory/agents/${slug}/start`, { method: 'POST' });
+          if (r.ok) await this.fetchAgents();
+          else {
+            const d = await r.json().catch(() => ({}));
+            alert(d.detail || 'Start failed');
+          }
+        } catch {}
         this.busy = false;
       },
 

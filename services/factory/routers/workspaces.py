@@ -1,6 +1,7 @@
 """workspaces.py — Workspace (skill-set) CRUD, file editor, skills, git versioning."""
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -67,11 +68,22 @@ def _workspace_summary(entry: Path) -> dict:
             skill_count = sum(1 for s in skills_dir.iterdir() if s.is_dir())
         except PermissionError:
             pass
+    # Read default model from config.json if present
+    model = ""
+    config_file = entry / "config.json"
+    if config_file.exists():
+        try:
+            cfg = json.loads(config_file.read_text(encoding="utf-8"))
+            model = (cfg.get("agents", {}).get("defaults", {}).get("model", "")
+                     or cfg.get("model", ""))
+        except Exception:
+            pass
     return {
         "slug":           entry.name,
         "name":           entry.name.replace("-", " ").title(),
         "identity_files": [f for f in files if f in _IDENTITY_FILES],
         "skill_count":    skill_count,
+        "model":          model,
     }
 
 
@@ -130,6 +142,33 @@ async def create_workspace(body: CreateWorkspaceBody) -> dict:
                    "memory", "sessions", "benchmarks", "cron"):
         (ws / subdir).mkdir(parents=True, exist_ok=True)
     (ws / "memory" / "MEMORY.md").touch(exist_ok=True)
+
+    # Ensure config.json exists so spawned agents can start
+    config_file = ws / "config.json"
+    if not config_file.exists():
+        _default_config = {
+            "agents": {
+                "defaults": {
+                    "workspace": "/workspace",
+                    "model": "qwen3:1.7b",
+                    "provider": "local",
+                    "maxTokens": 4096,
+                    "contextWindowTokens": 16384,
+                    "temperature": 0.7,
+                    "maxToolIterations": 10,
+                    "timezone": "Europe/Brussels",
+                }
+            },
+            "channels": {"sendProgress": False, "sendToolHints": False, "sendMaxRetries": 3},
+            "providers": {
+                "local": {"label": "Local", "apiKey": "", "apiBase": "http://ollama:11434/v1"},
+                "xai":   {"label": "xAI",   "apiKey": "", "apiKeyEnv": "GROK_API_KEY",
+                          "apiBase": "https://api.x.ai/v1",
+                          "models": ["grok-3-mini", "grok-3"]},
+            },
+            "gateway": {"host": "0.0.0.0", "port": 6161},
+        }
+        config_file.write_text(json.dumps(_default_config, indent=2) + "\n", encoding="utf-8")
 
     _git_init(ws)
     log_event("workspace_save", target_type="workspace", target_slug=body.slug,
