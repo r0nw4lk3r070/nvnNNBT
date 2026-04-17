@@ -722,36 +722,28 @@ Behaves like the VS Code terminal panel. Drag the top edge to resize. Double-cli
 
 ## Build phases
 
-### Phase 1 — Foundation (now)
+### Phase 1 — Foundation ✅ COMPLETE (April 2026)
 
 Goal: working Art + Lab in Docker, factory service scaffolded, SPA shell in place.
 
-**UI shell (build this first — everything else plugs in)**
-
-1. Replace `agents.html` with a proper `index.html` SPA shell:
-   - Activity bar (left strip, icon-only, 8 sections)
-   - Tab bar with tab manager (open/close/switch, `x-show` not `x-if`)
-   - Right panel slot (Art chat — collapsible, toggle button)
-   - Bottom panel (collapsed to status bar by default, drag-resizable)
-   - Main content area (renders active tab)
-   - All sections stubbed with placeholder content — full layout visible from day one
-2. Wire Alpine.js top-level store: `tabs[]`, `activeTab`, `rightPanelOpen`, `bottomPanelHeight`
-3. Verify: switching between stub tabs does not reload the page or interrupt running JS timers
+**UI shell**
+- ✅ `index.html` SPA — activity bar (8 sections), tab bar, right panel, bottom status bar, all sections stubbed
+- ✅ Alpine.js store: `tabs[]`, `activeTab`, `rightPanelOpen`, `bottomPanelHeight`
+- ✅ Tab switching does not interrupt SSE streams or running JS
 
 **Backend**
+- ✅ `factory` service — FastAPI, health check, SQLite, events SSE
+- ✅ `api` (Express/TS) replaced by `factory` in `docker-compose.yml`
+- ✅ `agent` service ported from `e:\art`, env-driven, clean paths
+- ✅ `GET /workspaces` — Lab workspace listing via factory API
+- ✅ `nginx.conf` — `/api/factory/*` → factory:4000, `/chat` + `/lab/chat` → agent:6161
+- ✅ `data/workspaces/` seeded with skill-sets (`call-centre`, `business-toolkit`, `geo-seo`, `sri`, `legal`, `marketing`, `euai`, `_template`)
 
-4. Stand up `factory` service (FastAPI, empty routes, health check, SQLite init)
-5. Replace `api` service in `docker-compose.yml` with `factory`
-6. Port `e:\art` `agent` service code into `nvnNNBT/services/agent/` (clean paths, env-driven)
-7. Port Lab workspace listing from `state.py` to factory API (`GET /workspaces`)
-8. Update `ui/nginx.conf` to proxy `/api/*` to factory:4000 and `/agent/*` to agent:6161
-9. Seed `data/workspaces/` with the existing skill-sets from `e:\art/skill-sets/`
-
-**Wire up first two live sections**
-
-10. Overview: system health strip (factory + agent + Ollama reachability via factory SSE), recent activity feed (empty is fine), resource bar (CPU + RAM; VRAM if `nvidia-smi` available)
-11. Art right panel: SSE chat stream from agent service, model indicator, collapse toggle
-12. Verify: Art chat works end-to-end, health strip reflects real service state, tab switching does not interrupt the SSE stream
+**Live sections**
+- ✅ Overview — health strip (factory, agent, Ollama), activity feed, CPU/RAM resource bar
+- ✅ Art right panel — SSE streaming, model switcher (per-provider tabs), collapse toggle
+- ✅ Art chat confirmed end-to-end with Ollama Desktop cloud models and xAI grok
+- ✅ Lab — workspace list with filter + sidebar, identity file editor, sandbox chat tab with in-tab model picker, Alpine reactivity fix for streaming responses
 
 ### Phase 2 — Spawn
 
