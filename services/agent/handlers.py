@@ -282,7 +282,9 @@ async def handle_models(_: web.Request) -> web.Response:
         static    = pc.get("models", [])
 
         fetched: list[dict] = []
-        if api_base:
+        if api_base and not static:
+            # Only do a live fetch when the provider has no curated static list.
+            # Providers with a static list (e.g. ollamaCloud, xAI) use it as-is.
             try:
                 headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
                 async with aiohttp.ClientSession() as s:
@@ -296,7 +298,8 @@ async def handle_models(_: web.Request) -> web.Response:
                 fetched = [
                     {"name": m.get("id") or m.get("name"), "source": pname}
                     for m in items
-                    if m.get("id") or m.get("name")
+                    if (m.get("id") or m.get("name"))
+                    and not (m.get("id") or m.get("name") or "").endswith(":cloud")
                 ]
             except Exception as e:
                 logger.warning("provider '{}' model fetch failed: {}", pname, e)
