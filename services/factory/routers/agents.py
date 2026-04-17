@@ -128,11 +128,12 @@ async def spawn_agent(body: SpawnBody) -> dict:
             detail="HOST_PROJECT_PATH env var not set — required for bind-mounting workspace",
         )
 
-    # Validate workspace exists
-    ws_path_container = f"/app/data/workspaces/{body.slug}"
-    ws_path_host = Path(HOST_PROJECT) / "data" / "workspaces" / body.slug
-    if not ws_path_host.exists():
+    # Validate workspace exists (check via container-internal mount, not host path)
+    workspaces_root = os.environ.get("WORKSPACES_ROOT", "/app/data/workspaces")
+    ws_path_container = f"{workspaces_root}/{body.slug}"
+    if not Path(ws_path_container).exists():
         raise HTTPException(status_code=404, detail=f"Workspace '{body.slug}' not found")
+    ws_path_host = str(Path(HOST_PROJECT) / "data" / "workspaces" / body.slug)
 
     # Check not already running
     with get_conn(DB_PATH) as conn:
@@ -168,7 +169,7 @@ async def spawn_agent(body: SpawnBody) -> dict:
                 "GROK_API_KEY":   body.grok_api_key,
             },
             volumes={
-                str(ws_path_host): {"bind": ws_path_container, "mode": "rw"},
+                ws_path_host: {"bind": ws_path_container, "mode": "rw"},
                 str(Path(HOST_PROJECT) / "data" / "workspaces"): {
                     "bind": "/app/data/workspaces", "mode": "ro",
                 },
