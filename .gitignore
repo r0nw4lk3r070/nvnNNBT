@@ -5,6 +5,7 @@ workspace/memory/.dream_cursor
 workspace/memory/HISTORY.md.bak
 workspace/sessions/
 workspace/.gitignore
+workspace/memory/lab_state.json
 data/workspaces/*/memory/history.jsonl
 data/workspaces/*/sessions/
 data/workspaces/*/knowledge/vectors.db
