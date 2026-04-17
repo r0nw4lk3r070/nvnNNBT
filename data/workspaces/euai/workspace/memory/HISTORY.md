@@ -1,0 +1,6 @@
+# History
+
+[2026-04-14 15:06] EUAI skill-set created. nvnJRST workspace scaffolded. Skills: EU Legal Research, Regulatory Tracking, Legislation Analysis. Library folder ready for population by user.
+[2026-04-14 15:21] Library populated by user. 7 EU laws (GDPR, DORA, Data Act, NIS2, CRA, AI Act, DGA) in EN+NL, PDF+txt. Research deep-dives + 14 sector guides in EN+NL. MEMORY.md updated with library index.
+[2026-04-14 15:35] Key sources & contacts populated in MEMORY.md. Official EU websites per regulation: EUR-Lex, OEIL, EDPB, EDPS, AI Office, AI Act Service Desk, ENISA, ESAs (EBA/ESMA/EIOPA), EC policy pages (AI, NIS2, Data Act, DGA, CRA). Key deadlines added.
+[2026-04-14 15:44] Key persons added to MEMORY.md. Commission: von der Leyen, Virkkunen (Digital & Frontier Tech), Viola (DG CONNECT). AI Act: Sioli (AI Office director), Benifei & Tudorache (MEP co-rapporteurs). GDPR: Talus (EDPB chair), Wiewiórowski (EDPS). NIS2: Lepassaar (ENISA). DORA: Ross (ESMA), Michaud (EBA), Hielkema (EIOPA). EP committees: Cavazzini (IMCO), Zarzalejos (LIBE).
