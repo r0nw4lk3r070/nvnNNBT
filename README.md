@@ -1,7 +1,7 @@
-# nvnNNBT — Neven Nanobot Blueprint
+# nvnNNBT — Agent Factory
 
-**Version:** 0.1.0 · Phase 1  
-A portable, Docker-first nanobot platform. `docker compose up` and go.
+**Version:** 0.2.0 · Phase 1 complete → Phase 2 next  
+Build, test, and deploy AI agents and agent teams. One application, Docker-first.
 
 ---
 
@@ -9,94 +9,86 @@ A portable, Docker-first nanobot platform. `docker compose up` and go.
 
 | Service | Port | What |
 |---|---|---|
-| `ui` | 3000 | nginx — entry point, proxies to agent |
-| `api` | 4000 | Express/TS — agent registry, spawn API |
-| `agent` | 6161 | nanobot-ai — chat, lab, skill-sets |
-| `ollama` | — | Bundled Ollama (optional, profiled out by default — see below) |
+| `ui` | 3000 | nginx — SPA entry point, proxies to factory + agent |
+| `factory` | 4000 | FastAPI — workspace CRUD, sandbox, spawn, events |
+| `agent` | 6161 | nanobot-ai — Art (persistent top-level agent) |
 
 ---
 
 ## Quick start
 
-### 1. Prerequisites
+### Prerequisites
 
-- Docker Desktop (or Docker Engine on Linux)
-- 4 GB RAM minimum (8+ recommended for larger models)
+- Docker Desktop
+- Ollama running on the host (`localhost:11434`) — or see [Bundled Ollama](#bundled-ollama)
+- Optional: xAI API key for Grok models
 
-### 2. Configure
+### Configure
 
 ```bash
 cp .env.example .env
-# Edit .env if needed (defaults work out of the box)
+# Add GROK_API_KEY if using xAI models (optional)
 ```
 
-### 3. Start
+### Start
 
 ```bash
 docker compose up --build
 ```
 
-This assumes Ollama is already running on your host (the default). If you don't have Ollama, see [Bundled Ollama](#bundled-ollama) below.
+### Open
 
-### 4. Open
-
-| URL | What |
-|---|---|
-| http://localhost:3000 | Chat with the nanobot |
-| http://localhost:3000/lab | Lab — load and test skill-sets |
-| http://localhost:6161 | Agent direct (no nginx) |
-| http://localhost:4000/health | API health check |
+http://localhost:3000
 
 ---
 
-## Using the Lab
+## What's inside
 
-The Lab lets you load a skill-set and chat with a scoped nanobot agent. Skill-sets live in `./skill-sets/`. A `_template` is included to get started.
+**Art** — top-level agent. Always accessible via the right panel. Ask anything, get help building skill-sets, research, delegate. Supports Ollama local/cloud models and xAI Grok.
 
-**To create a new skill-set:**
+**Lab** — workspace editor and sandbox. Create or edit a skill-set (SOUL, AGENTS, TOOLS, HEARTBEAT, USER, skills). Load it into the sandbox, pick a model in the tab, chat with the scoped agent, iterate.
 
-1. Copy `skill-sets/_template/` → `skill-sets/my-agent/`
-2. Fill in `SOUL.md`, `AGENTS.md`, `USER.md` (replace `{{PLACEHOLDERS}}`)
-3. Open http://localhost:3000/lab
-4. Select your skill-set from the sidebar, choose a model, click Load
+**Overview** — system health (factory, agent, Ollama), CPU/RAM, recent activity feed.
+
+---
+
+## LLM providers
+
+Configured in `workspace/config.json`. Three provider profiles ship by default:
+
+| Profile | Endpoint | Key |
+|---|---|---|
+| `local` | `http://host.docker.internal:11434/v1` | no |
+| `ollamaCloud` | `http://host.docker.internal:11434/v1` | no |
+| `xai` | `https://api.x.ai/v1` | `GROK_API_KEY` env var |
+
+All model switching happens in the UI — Art panel header or the sandbox tab's model picker. Changes persist to `workspace/config.json`.
 
 ---
 
 ## Bundled Ollama
 
-By default the stack uses Ollama running on your host. If you don't have a host Ollama, you can start the bundled one:
+By default the stack expects Ollama on the host. To run it in Docker instead:
 
 ```bash
 docker compose --profile bundled-ollama up --build
 ```
 
-Then set `.env`:
+Then set in `.env`:
 
 ```env
 OLLAMA_BASE_URL=http://ollama:11434
-```
-
-Pull a model into it:
-
-```bash
-docker exec nvnnnbt-ollama ollama pull qwen3:1.7b
 ```
 
 ---
 
 ## Environment variables
 
-See [.env.example](.env.example) for the full list with descriptions.
-
 | Variable | Default | Description |
 |---|---|---|
-| `UI_PORT` | 3000 | Host port for the UI |
-| `API_PORT` | 4000 | Host port for the API |
-| `AGENT_PORT` | 6161 | Host port for the agent (direct) |
-| `OLLAMA_PORT` | 11434 | Host port for Ollama |
-| `OLLAMA_BASE_URL` | http://host.docker.internal:11434 | URL agent uses to reach Ollama |
-| `API_KEY` | *(empty)* | Auth key for the API. Empty = no auth |
-| `GROK_API_KEY` | *(empty)* | xAI Grok key (optional cloud models) |
+| `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | Ollama endpoint for the agent |
+| `GROK_API_KEY` | *(empty)* | xAI key — leave empty if not using Grok |
+| `HOST_PROJECT_PATH` | `e:/nvnNNBT` | Host path for volume mounts |
 
 ---
 
@@ -105,55 +97,35 @@ See [.env.example](.env.example) for the full list with descriptions.
 ```
 nvnNNBT/
 ├── docker-compose.yml
-├── .env.example
+├── .env
 ├── services/
-│   ├── agent/          # nanobot-ai server (Python 3.12)
-│   ├── api/            # Express/TS proxy (Node 20)
-│   └── ui/             # nginx reverse proxy
-├── workspace/          # Mounted as /workspace in agent container
-│   ├── config.json     # Agent config (model, Ollama URL, etc.)
-│   ├── SOUL.md         # Agent identity
-│   ├── AGENTS.md       # Agent instructions
-│   ├── USER.md         # User profile
-│   ├── TOOLS.md        # Tool usage notes
-│   ├── HEARTBEAT.md    # Periodic tasks
-│   ├── cron/jobs.json
+│   ├── agent/          # nanobot-ai — Art agent (Python 3.12, aiohttp)
+│   ├── factory/        # Agent Factory backend (Python 3.11, FastAPI)
+│   └── ui/             # SPA + nginx reverse proxy
+├── workspace/          # Art's workspace — mounted as /workspace in agent
+│   ├── config.json     # Model, provider, and agent config
+│   ├── SOUL.md
+│   ├── AGENTS.md
+│   ├── USER.md
+│   ├── TOOLS.md
+│   ├── HEARTBEAT.md
 │   └── memory/
-└── skill-sets/         # Mounted as /skill-sets in agent container
-    └── _template/      # Starter template for new skill-sets
+└── data/
+    └── workspaces/     # Skill-sets — mounted into factory + agent
+        ├── _template/
+        ├── call-centre/
+        ├── business-toolkit/
+        └── ...
 ```
-
----
-
-## Changing the default model
-
-Edit `workspace/config.json`:
-
-```json
-{
-  "agents": {
-    "defaults": {
-      "model": "gemma4:12b"
-    }
-  }
-}
-```
-
-Or use the Model selector in the chat UI header (persists to config.json).
 
 ---
 
 ## Roadmap
 
-- **Phase 1** — Chat + Lab in Docker ✅
-- **Phase 2** — Agent spawning via REST API (`POST /agents`) ✅
-- **Phase 3** — Agent spawning UI, team pipelines
-- **Phase 4** — Discord bot service, MCP server integrations
+- **Phase 1** — Art + Lab in Docker, factory service, SPA shell ✅
+- **Phase 2** — Workspace spawn (solo agents as containers), Lab identity editor, Agents section
+- **Phase 3** — Teams + Arena (multi-agent sessions)
+- **Phase 4** — Version control + Benchmark (git tags, LLM-as-judge evals)
+- **Phase 5** — Export (portable agent bundles)
 
----
-
-## Docs
-
-- [LLM providers — Ollama, vLLM, external APIs](docs/llm-providers.md)
-- [Agent spawning — spawn and manage multiple agents](docs/agent-spawning.md)
-- [BLUEPRINT.md](BLUEPRINT.md) — full design document
+See [docs/factory.md](docs/factory.md) for the full design document.
