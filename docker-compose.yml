@@ -42,6 +42,7 @@ services:
       FACTORY_TOKEN: ${FACTORY_TOKEN:-}
     volumes:
       - ./data:/app/data
+      - ./workspace/workspaces:/app/data/workspaces
       - /var/run/docker.sock:/var/run/docker.sock
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -68,13 +69,12 @@ services:
       - "${AGENT_PORT:-6161}:6161"
     environment:
       WORKSPACE_PATH: /workspace
-      SKILLSETS_PATH: /app/data/workspaces
+      SKILLSETS_PATH: /workspace/workspaces
       AGENT_PORT: 6161
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       GROK_API_KEY: ${GROK_API_KEY:-}
     volumes:
       - ./workspace:/workspace
-      - ./data/workspaces:/app/data/workspaces
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:6161/health')"]
       interval: 10s

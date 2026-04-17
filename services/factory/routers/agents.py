@@ -133,7 +133,7 @@ async def spawn_agent(body: SpawnBody) -> dict:
     ws_path_container = f"{workspaces_root}/{body.slug}"
     if not Path(ws_path_container).exists():
         raise HTTPException(status_code=404, detail=f"Workspace '{body.slug}' not found")
-    ws_path_host = str(Path(HOST_PROJECT) / "data" / "workspaces" / body.slug)
+    ws_path_host = str(Path(HOST_PROJECT) / "workspace" / "workspaces" / body.slug)
 
     # Check not already running
     with get_conn(DB_PATH) as conn:
@@ -170,7 +170,7 @@ async def spawn_agent(body: SpawnBody) -> dict:
             },
             volumes={
                 ws_path_host: {"bind": ws_path_container, "mode": "rw"},
-                str(Path(HOST_PROJECT) / "data" / "workspaces"): {
+                str(Path(HOST_PROJECT) / "workspace" / "workspaces"): {
                     "bind": "/app/data/workspaces", "mode": "ro",
                 },
             },
