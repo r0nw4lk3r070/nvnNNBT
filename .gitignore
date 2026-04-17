@@ -4,6 +4,7 @@ workspace/memory/.cursor
 workspace/memory/.dream_cursor
 workspace/memory/HISTORY.md.bak
 workspace/sessions/
+workspace/.gitignore
 data/workspaces/*/memory/history.jsonl
 data/workspaces/*/sessions/
 data/workspaces/*/knowledge/vectors.db
