@@ -258,6 +258,9 @@
       width: var(--right-w); min-width: var(--right-w);
       border-left-color: var(--border);
     }
+    .right-panel.open.wide {
+      width: 720px; min-width: 720px;
+    }
 
     .rp-header {
       display: flex; align-items: center; justify-content: space-between;
@@ -1038,18 +1041,12 @@
               <div style="display:flex;flex-direction:column;gap:.25rem">
                 <label style="font-size:.7rem;color:var(--muted)">Workspace</label>
                 <select style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.3rem .65rem;color:var(--text);font-size:.78rem;font-family:inherit;outline:none;min-width:160px"
-                        x-model="spawnSlug" @change="onWorkspaceChange()">
+                        x-model="spawnSlug">
                   <option value="">— select workspace —</option>
                   <template x-for="ws in workspaces" :key="ws.slug">
                     <option :value="ws.slug" x-text="ws.slug"></option>
                   </template>
                 </select>
-              </div>
-              <div style="display:flex;flex-direction:column;gap:.25rem">
-                <label style="font-size:.7rem;color:var(--muted)">Model</label>
-                <input type="text"
-                       style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.3rem .65rem;color:var(--text);font-size:.78rem;font-family:monospace;outline:none;min-width:180px"
-                       x-model="spawnModel" placeholder="qwen3:1.7b">
               </div>
               <button class="btn btn-primary" style="font-size:.78rem"
                       @click="spawn()" :disabled="!spawnSlug || busy">Spawn</button>
@@ -1165,16 +1162,34 @@
       </main><!-- /main-content -->
 
       <!-- ── RIGHT PANEL: ART ───────────────────────────────────── -->
-      <aside class="right-panel" :class="{open: $store.f.rightOpen}"
+      <aside class="right-panel" :class="{open: $store.f.rightOpen, wide: panelWide}"
              x-data="artPanel()" style="position:relative;overflow:hidden">
         <div class="rp-header">
           <div class="rp-title">
             <div class="art-dot" :class="{live: ready}"></div>
             <span>Art</span>
           </div>
-          <span class="rp-model" x-text="model || '…'"
-                @click="modelOpen=!modelOpen"
-                style="cursor:pointer" title="Switch model"></span>
+          <div style="display:flex;gap:4px;align-items:center">
+            <span class="rp-model" x-text="model || '…'"
+                  @click="modelOpen=!modelOpen"
+                  style="cursor:pointer" title="Switch model"></span>
+            <button class="icon-btn" @click="toggleSessions()" :class="{on:sessionPanelOpen}"
+                    title="Chat history" style="width:24px;height:24px;flex-shrink:0">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:13px;height:13px">
+                <line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="10" y2="12"/>
+              </svg>
+            </button>
+            <button class="icon-btn" @click="panelWide=!panelWide"
+                    :title="panelWide?'Shrink panel':'Expand panel'"
+                    style="width:24px;height:24px;flex-shrink:0">
+              <svg x-show="!panelWide" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:13px;height:13px">
+                <path d="M1 6V1h5M10 1h5v5M15 10v5h-5M6 15H1v-5"/>
+              </svg>
+              <svg x-show="panelWide" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:13px;height:13px">
+                <path d="M6 1L1 6M10 1l5 5M15 10l-5 5M1 10l5 5"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
         <!-- model picker overlay -->
@@ -1207,6 +1222,33 @@
             <span x-show="switching" class="spinner"></span>
             <button class="btn btn-primary" style="flex:1;font-size:.75rem"
                     @click="applyModel()" :disabled="!modelSelected||modelSelected===model||switching">Apply</button>
+          </div>
+        </div>
+
+        <!-- sessions overlay -->
+        <div x-show="sessionPanelOpen" x-cloak
+             style="position:absolute;top:36px;right:0;left:0;bottom:0;background:var(--surface);z-index:9;display:flex;flex-direction:column;border-top:1px solid var(--border)">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:.4rem .65rem;border-bottom:1px solid var(--border);flex-shrink:0">
+            <span style="font-size:.75rem;font-weight:600;color:var(--accent2)">Chat history</span>
+            <div style="display:flex;gap:.35rem;align-items:center">
+              <button @click="newChat()" title="New chat"
+                      style="background:none;border:1px solid var(--border);color:var(--muted2);font-size:.7rem;cursor:pointer;border-radius:4px;padding:.1rem .4rem;font-family:inherit">+ New</button>
+              <button @click="sessionPanelOpen=false" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;line-height:1;padding:0 2px">&times;</button>
+            </div>
+          </div>
+          <div style="flex:1;overflow-y:auto;padding:.3rem .4rem">
+            <span x-show="sessionsLoading" class="spinner" style="display:block;margin:.5rem auto"></span>
+            <template x-for="s in sessions" :key="s.id">
+              <div @click="loadSession(s.id)"
+                   style="padding:.3rem .55rem;border-radius:5px;cursor:pointer;font-size:.72rem;display:flex;align-items:center;gap:.35rem"
+                   :style="{background: s.id===activeSessionId ? 'var(--accent-dim)' : 'transparent'}">
+                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)" x-text="s.title||'Untitled'"></span>
+                <span style="color:var(--muted);font-size:.65rem;flex-shrink:0" x-text="s.count+' msgs'"></span>
+              </div>
+            </template>
+            <template x-if="!sessionsLoading && sessions.length===0">
+              <p style="color:var(--muted);font-size:.75rem;text-align:center;padding:1rem 0">No saved chats yet.</p>
+            </template>
           </div>
         </div>
 
@@ -1646,7 +1688,6 @@
       busy: false,
       spawnOpen: false,
       spawnSlug: '',
-      spawnModel: 'qwen3:1.7b',
       spawnError: '',
 
       async init() {
@@ -1670,11 +1711,6 @@
         } catch {}
       },
 
-      onWorkspaceChange() {
-        const ws = this.workspaces.find(w => w.slug === this.spawnSlug);
-        if (ws && ws.model) this.spawnModel = ws.model;
-      },
-
       async spawn() {
         if (!this.spawnSlug) return;
         // Check for already-running instance
@@ -1687,10 +1723,10 @@
         try {
           const r = await fetch('/api/factory/agents', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ slug: this.spawnSlug, model: this.spawnModel || 'qwen3:1.7b' }),
+            body: JSON.stringify({ slug: this.spawnSlug }),
           });
           if (r.ok) {
-            this.spawnOpen = false; this.spawnSlug = ''; this.spawnModel = 'qwen3:1.7b';
+            this.spawnOpen = false; this.spawnSlug = '';
             await this.fetchAgents();
           } else {
             const d = await r.json().catch(() => ({}));
@@ -1881,6 +1917,12 @@
       modelTab:     '',
       modelSelected:'',
       switching:    false,
+      // panel + sessions
+      panelWide:        false,
+      sessionPanelOpen: false,
+      sessions:         [],
+      sessionsLoading:  false,
+      activeSessionId:  null,
 
       async init() {
         // Probe agent health via factory
@@ -1918,8 +1960,60 @@
         this.switching = false
       },
 
+      async toggleSessions() {
+        this.sessionPanelOpen = !this.sessionPanelOpen
+        if (this.sessionPanelOpen) await this.loadSessions()
+      },
+
+      async loadSessions() {
+        this.sessionsLoading = true
+        try {
+          const r = await fetch('/api/chats', { signal: AbortSignal.timeout(4000) })
+          if (r.ok) { const d = await r.json(); this.sessions = d.chats || [] }
+        } catch {}
+        this.sessionsLoading = false
+      },
+
+      newChat() {
+        this.messages = []
+        this.activeSessionId = null
+        this.draft = ''
+        this.sessionPanelOpen = false
+        this.$nextTick(() => this.$refs.input?.focus())
+      },
+
+      async loadSession(id) {
+        try {
+          const r = await fetch(`/api/chats/${id}`, { signal: AbortSignal.timeout(4000) })
+          if (r.ok) {
+            const d = await r.json()
+            this.messages = d.messages || []
+            this.activeSessionId = id
+            this.sessionPanelOpen = false
+            this.$nextTick(() => { this.scrollBottom(); this.$refs.input?.focus() })
+          }
+        } catch {}
+      },
+
+      async autoSave() {
+        const msgs = this.messages.filter(m => m.role && m.content && !m.streaming)
+        if (msgs.length < 2) return
+        try {
+          const body = { messages: msgs }
+          if (this.activeSessionId) body.id = this.activeSessionId
+          const r = await fetch('/api/chats', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          })
+          if (r.ok) {
+            const d = await r.json()
+            if (!this.activeSessionId) this.activeSessionId = d.id
+            if (this.sessionPanelOpen) this.loadSessions()
+          }
+        } catch {}
+      },
+
       autosize(el) {
-        el.style.height = 'auto'
         el.style.height = Math.min(el.scrollHeight, 120) + 'px'
       },
 
@@ -1991,6 +2085,8 @@
           this.messages[this.messages.length - 1].streaming = false
           this.streaming = false
           this.scrollBottom()
+          this.autoSave()
+          this.$nextTick(() => this.$refs.input?.focus())
         }
       },
     }

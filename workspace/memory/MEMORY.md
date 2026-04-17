@@ -1,12 +1,15 @@
 # Memory
 
-Persistent context for Nanobot. Updated during conversations.
+Persistent context for ART. Updated during conversations.
 
 ## About this instance
 
 - Platform: nvnNNBT — Neven Nanobot Blueprint
-- Workspace: /workspace (Docker volume)
-- Skill-sets: /skill-sets (Docker volume)
+- Role: Top-level factory agent (ART)
+- My workspace: /workspace (host: e:/nvnNNBT/workspace)
+- Spawned workspaces: /app/data/workspaces/ (host: e:/nvnNNBT/data/workspaces/)
+- Factory backend: http://factory:4000 (proxied via nginx at /api/factory/)
+- Chat server: http://agent:6161 (that is me)
 
 ## User preferences
 
