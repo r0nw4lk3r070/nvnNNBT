@@ -26,7 +26,7 @@ Three services running in Docker Compose:
 - SQLite agent registry (`data/nanobot.db`) with live Docker status sync
 - Workspace `config.json` — controls model and provider per-workspace
 
-**Next up (Phase 3+):** Lab sandbox, Arena testing, team spawn, benchmark, export.
+**Next up (Phase 3):** Team spawn, Arena testing, shared knowledge layer. See [phase3.md](phase3.md) for the full spec.
 
 ---
 
