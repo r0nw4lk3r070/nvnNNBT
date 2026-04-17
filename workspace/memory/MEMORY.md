@@ -7,7 +7,7 @@ Persistent context for ART. Updated during conversations.
 - Platform: nvnNNBT — Neven Nanobot Blueprint
 - Role: Top-level factory agent (ART)
 - My workspace: /workspace (host: e:/nvnNNBT/workspace)
-- Spawned workspaces: /app/data/workspaces/ (host: e:/nvnNNBT/data/workspaces/)
+- Spawned workspaces: /workspace/workspaces/ (host: e:/nvnNNBT/workspace/workspaces/)
 - Factory backend: http://factory:4000 (proxied via nginx at /api/factory/)
 - Chat server: http://agent:6161 (that is me)
 
