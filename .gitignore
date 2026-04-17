@@ -1,7 +1,9 @@
 .env
-workspace/memory/
-workspace/sessions/
 workspace/memory/history.jsonl
+workspace/memory/.cursor
+workspace/memory/.dream_cursor
+workspace/memory/HISTORY.md.bak
+workspace/sessions/
 data/workspaces/*/memory/history.jsonl
 data/workspaces/*/sessions/
 data/workspaces/*/knowledge/vectors.db
