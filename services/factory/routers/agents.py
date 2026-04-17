@@ -54,27 +54,42 @@ def _used_ports() -> set[int]:
     return ports
 
 
+# ── Helpers: parse ports string ───────────────────────────────────────────────
+
+def _parse_ports(ports_str: str) -> tuple[int | None, int | None]:
+    """Return (gateway_port, chat_port) from stored 'gateway,chat' string."""
+    if not ports_str:
+        return None, None
+    parts = [p.strip() for p in ports_str.split(",") if p.strip().isdigit()]
+    gateway = int(parts[0]) if len(parts) > 0 else None
+    chat    = int(parts[1]) if len(parts) > 1 else None
+    return gateway, chat
+
+
 # ── List agents ───────────────────────────────────────────────────────────────
 
 @router.get("")
 async def list_agents() -> dict:
     with get_conn(DB_PATH) as conn:
         rows = conn.execute(
-            "SELECT slug, container, ports, model, status, session_type, created_at "
+            "SELECT slug, container, ports, model, status, session_type, created_at, workspace_slug "
             "FROM spawned_agents ORDER BY created_at DESC"
         ).fetchall()
-    agents = [
-        {
-            "slug":         r[0],
-            "container":    r[1],
-            "ports":        r[2],
-            "model":        r[3],
-            "status":       r[4],
-            "session_type": r[5],
-            "created_at":   r[6],
-        }
-        for r in rows
-    ]
+    agents = []
+    for r in rows:
+        gateway_port, chat_port = _parse_ports(r[2])
+        agents.append({
+            "slug":          r[0],
+            "container":     r[1],
+            "ports":         r[2],
+            "gateway_port":  gateway_port,
+            "chat_port":     chat_port,
+            "model":         r[3],
+            "status":        r[4],
+            "session_type":  r[5],
+            "created_at":    r[6],
+            "workspace_slug": r[7] or r[0],
+        })
     # Sync live container status
     try:
         dc = _docker_client()
@@ -148,6 +163,7 @@ async def spawn_agent(body: SpawnBody) -> dict:
                 "WORKSPACE_PATH": ws_path_container,
                 "SKILLSETS_PATH": "/app/data/workspaces",
                 "AGENT_PORT":     "6161",
+                "AGENT_MODE":     "production",
                 "OLLAMA_BASE_URL": OLLAMA_URL,
                 "GROK_API_KEY":   body.grok_api_key,
             },
@@ -168,9 +184,9 @@ async def spawn_agent(body: SpawnBody) -> dict:
     with get_conn(DB_PATH) as conn:
         conn.execute(
             "INSERT OR REPLACE INTO spawned_agents "
-            "(slug, container, ports, model, status, session_type, created_at) "
-            "VALUES (?, ?, ?, ?, 'running', 'production', ?)",
-            (body.slug, container_name, ports_str, body.model, int(time.time())),
+            "(slug, container, ports, model, status, session_type, workspace_slug, created_at) "
+            "VALUES (?, ?, ?, ?, 'running', 'production', ?, ?)",
+            (body.slug, container_name, ports_str, body.model, body.slug, int(time.time())),
         )
 
     log_event("agent_spawn", target_type="agent", target_slug=body.slug,
@@ -230,4 +246,30 @@ async def delete_agent(slug: str) -> dict:
 
     log_event("agent_stop", target_type="agent", target_slug=slug,
               detail=f"Agent '{slug}' deleted")
+    return {"ok": True}
+
+
+# ── Start agent ───────────────────────────────────────────────────────────────
+
+@router.post("/{slug}/start")
+async def start_agent(slug: str) -> dict:
+    with get_conn(DB_PATH) as conn:
+        row = conn.execute(
+            "SELECT container FROM spawned_agents WHERE slug=?", (slug,)
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"No agent record for '{slug}'")
+
+    dc = _docker_client()
+    try:
+        c = dc.containers.get(row[0])
+        c.start()
+    except docker.errors.NotFound:
+        raise HTTPException(status_code=404, detail=f"Container for '{slug}' no longer exists — delete and respawn")
+
+    with get_conn(DB_PATH) as conn:
+        conn.execute("UPDATE spawned_agents SET status='running' WHERE slug=?", (slug,))
+
+    log_event("agent_spawn", target_type="agent", target_slug=slug,
+              detail=f"Agent '{slug}' started")
     return {"ok": True}

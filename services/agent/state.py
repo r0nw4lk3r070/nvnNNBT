@@ -14,6 +14,7 @@ SKILLSETS_PATH = Path(os.environ.get("SKILLSETS_PATH", "/skill-sets"))
 
 CONFIG_PATH    = WORKSPACE_PATH / "config.json"
 HTTP_PORT      = int(os.environ.get("AGENT_PORT", "6161"))
+AGENT_MODE     = os.environ.get("AGENT_MODE", "art")   # "art" | "production"
 OLLAMA_BASE    = os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434")
 GROK_API_KEY   = os.environ.get("GROK_API_KEY", "")
 GROK_API_BASE  = "https://api.x.ai/v1"

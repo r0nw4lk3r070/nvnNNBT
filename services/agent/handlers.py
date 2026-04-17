@@ -16,6 +16,7 @@ import state
 import agent as _agent_mod
 from html_art import _build_art_html
 from html_lab import _build_lab_html
+from html_agent import _build_agent_html
 
 
 # ── Small utilities ──────────────────────────────────────────────────────────
@@ -35,7 +36,10 @@ def _auto_title(messages: list) -> str:
 # ── Core page handlers ───────────────────────────────────────────────────────
 
 async def handle_index(_: web.Request) -> web.Response:
-    html = _build_art_html()
+    if state.AGENT_MODE == "production":
+        html = _build_agent_html()
+    else:
+        html = _build_art_html()
     return web.Response(text=html, content_type="text/html")
 
 
@@ -712,3 +716,62 @@ async def handle_run_cron(request: web.Request) -> web.Response:
     job_id = request.match_info["id"]
     ok = await state._cron.run_job(job_id, force=True)
     return web.json_response({"ok": ok})
+
+
+# ── Agent status & settings (production mode) ────────────────────────────────
+
+async def handle_agent_status(_: web.Request) -> web.Response:
+    """Return basic identity info for the spawned agent web UI."""
+    workspace_name = state.WORKSPACE_PATH.name
+    # Extract agent name from first # heading in SOUL.md
+    name = workspace_name
+    soul = state.WORKSPACE_PATH / "SOUL.md"
+    if soul.exists():
+        for line in soul.read_text(encoding="utf-8").splitlines():
+            if line.startswith("# "):
+                name = line[2:].strip()
+                break
+    model = ""
+    try:
+        model = state._current_model()
+    except Exception:
+        pass
+    return web.json_response({
+        "workspace": workspace_name,
+        "name":      name,
+        "model":     model,
+        "mode":      state.AGENT_MODE,
+        "ready":     state._agent is not None,
+    })
+
+
+async def handle_agent_settings_get(_: web.Request) -> web.Response:
+    """Return editable settings: model and Ollama base URL."""
+    try:
+        cfg = state._read_config_raw()
+        model    = cfg.get("agents", {}).get("defaults", {}).get("model", "")
+        providers = cfg.get("providers", {})
+        local_cfg = providers.get("local") or {}
+        ollama_base = local_cfg.get("apiBase", "") or local_cfg.get("api_base", "")
+    except Exception:
+        model = ""
+        ollama_base = ""
+    return web.json_response({"model": model, "ollamaBase": ollama_base})
+
+
+async def handle_agent_settings_put(request: web.Request) -> web.Response:
+    """Update model and/or Ollama base URL in config.json."""
+    try:
+        body = await request.json()
+    except Exception:
+        return web.Response(status=400, text="invalid JSON")
+    try:
+        cfg = state._read_config_raw()
+        if "model" in body and body["model"]:
+            cfg.setdefault("agents", {}).setdefault("defaults", {})["model"] = body["model"]
+        if "ollamaBase" in body and body["ollamaBase"]:
+            cfg.setdefault("providers", {}).setdefault("local", {})["apiBase"] = body["ollamaBase"]
+        state._write_config_raw(cfg)
+    except Exception as e:
+        return web.Response(status=500, text=str(e))
+    return web.json_response({"ok": True})
