@@ -651,68 +651,192 @@
         </div>
 
         <!-- ── ART OFFICE ─────────────────────────────────────────── -->
-        <div class="section" x-show="$store.f.activeTab?.type === 'artoffice'">
-          <div class="sec-head">
-            <div class="sec-title">Art Office</div>
-            <div class="sec-sub">Manage Art's identity, memory, skills, and MCP connections.</div>
+        <div :style="{display: $store.f.activeTab?.type === 'artoffice' ? 'flex' : 'none'}"
+             x-data="artOfficeSection()"
+             style="flex-direction:column;height:calc(100vh - var(--tabbar-h) - var(--statusbar-h));overflow:hidden">
+
+          <!-- sub-tab bar -->
+          <div style="display:flex;border-bottom:1px solid var(--border);flex-shrink:0;padding:0 1.5rem;background:var(--bg)">
+            <template x-for="t in [{id:'identity',label:'Identity'},{id:'memory',label:'Memory'},{id:'skills',label:'Skills'},{id:'model',label:'Model'}]" :key="t.id">
+              <button style="padding:.55rem .9rem;font-size:.78rem;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;font-family:inherit"
+                      :style="{color: tab===t.id ? 'var(--accent2)' : 'var(--muted)', borderBottomColor: tab===t.id ? 'var(--accent)' : 'transparent'}"
+                      @click="switchTab(t.id)" x-text="t.label">
+              </button>
+            </template>
           </div>
-          <div class="card">
-            <h3>Identity editor <span class="phase">Phase 1</span></h3>
-            <p>Edit Art's core files — SOUL.md, AGENTS.md, TOOLS.md, HEARTBEAT.md, USER.md — via structured forms. Raw markdown always available.</p>
+
+          <!-- ─ Identity tab ─ -->
+          <div :style="{display: tab==='identity' ? 'flex' : 'none'}"
+               style="flex-direction:column;flex:1;min-height:0">
+            <!-- file tab bar -->
+            <div style="display:flex;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;flex-shrink:0;padding:0 1.5rem">
+              <template x-for="fn in identityFiles" :key="fn">
+                <div style="padding:.3rem .75rem;cursor:pointer;font-size:.75rem;white-space:nowrap;border-bottom:2px solid transparent;transition:color .1s,border-color .1s"
+                     :style="{color: identityFile===fn ? 'var(--text)' : 'var(--muted)', borderBottomColor: identityFile===fn ? 'var(--accent)' : 'transparent'}"
+                     @click="switchFile(fn)" x-text="fn.replace('.md','')">
+                </div>
+              </template>
+            </div>
+            <!-- editor -->
+            <div style="flex:1;padding:1.25rem 1.5rem;display:flex;flex-direction:column;gap:.6rem;min-height:0">
+              <textarea style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:.65rem .85rem;color:var(--text);font-family:'Cascadia Code','Fira Code',Consolas,monospace;font-size:.75rem;resize:none;outline:none;line-height:1.6;transition:border-color .12s"
+                        @focus="$el.style.borderColor='var(--accent)'"
+                        @blur="$el.style.borderColor='var(--border)'"
+                        x-model="fileContent">
+              </textarea>
+              <div style="display:flex;justify-content:flex-end;align-items:center;gap:.6rem">
+                <span x-show="fileSaved" style="font-size:.72rem;color:var(--green)">Saved ✓</span>
+                <span x-show="busy" class="spinner"></span>
+                <button class="btn btn-primary" style="font-size:.75rem" @click="saveFile()" :disabled="busy">Save</button>
+              </div>
+            </div>
           </div>
-          <div class="card">
-            <h3>Memory viewer <span class="phase">Phase 1</span></h3>
-            <p>View MEMORY.md by section. Trim controls: delete section, truncate to last N entries, clear all. Auto-alerts when memory exceeds threshold.</p>
+
+          <!-- ─ Memory tab ─ -->
+          <div :style="{display: tab==='memory' ? 'flex' : 'none'}"
+               style="flex-direction:column;flex:1;min-height:0;padding:1.25rem 1.5rem;gap:.6rem">
+            <div style="font-size:.72rem;color:var(--muted)">memory/MEMORY.md — persistent context Art reads at conversation start.</div>
+            <textarea style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:.65rem .85rem;color:var(--text);font-family:'Cascadia Code','Fira Code',Consolas,monospace;font-size:.75rem;resize:none;outline:none;line-height:1.6;transition:border-color .12s"
+                      @focus="$el.style.borderColor='var(--accent)'"
+                      @blur="$el.style.borderColor='var(--border)'"
+                      x-model="memContent">
+            </textarea>
+            <div style="display:flex;justify-content:flex-end;align-items:center;gap:.6rem">
+              <span x-show="memSaved" style="font-size:.72rem;color:var(--green)">Saved ✓</span>
+              <span x-show="busy" class="spinner"></span>
+              <button class="btn btn-primary" style="font-size:.75rem" @click="saveMemory()" :disabled="busy">Save</button>
+            </div>
           </div>
-          <div class="card">
-            <h3>Skills browser <span class="phase">Phase 1</span></h3>
-            <p>Browse, add, edit, and remove Art's skill files.</p>
+
+          <!-- ─ Skills tab ─ -->
+          <div :style="{display: tab==='skills' ? 'block' : 'none'}"
+               style="flex:1;overflow-y:auto;padding:1.25rem 1.5rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.85rem">
+              <span style="font-size:.72rem;color:var(--muted)">Art's personal skills in <code style="font-size:.7rem">skills/*/SKILL.md</code></span>
+              <button class="btn btn-primary" style="font-size:.75rem" @click="addSkill()" :disabled="busy">+ Add skill</button>
+            </div>
+            <div x-show="skillsLoading" style="color:var(--muted);font-size:.78rem">Loading…</div>
+            <div x-show="skills.length===0 && !skillsLoading" style="color:var(--muted);font-size:.78rem">No skills yet.</div>
+            <div style="display:flex;flex-direction:column;gap:.5rem">
+              <template x-for="sk in skills" :key="sk.name">
+                <div style="background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:.55rem .85rem;display:flex;align-items:flex-start;gap:.6rem">
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:.8rem;font-weight:600;margin-bottom:.2rem" x-text="sk.name"></div>
+                    <div style="font-size:.72rem;color:var(--muted);white-space:pre-wrap;max-height:60px;overflow:hidden" x-text="(sk.content||'').slice(0,180)"></div>
+                  </div>
+                  <button class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .5rem;flex-shrink:0;color:var(--red);border-color:var(--red)"
+                          @click="deleteSkill(sk.name)" :disabled="busy">Delete</button>
+                </div>
+              </template>
+            </div>
           </div>
-          <div class="card">
-            <h3>Model + MCP <span class="phase">Phase 1</span></h3>
-            <p>Switch Art's provider and model without restarting the service. MCP server connection list: add, remove, test. Connections auto-apply on save.</p>
+
+          <!-- ─ Model tab ─ -->
+          <div :style="{display: tab==='model' ? 'block' : 'none'}"
+               style="flex:1;overflow-y:auto;padding:1.25rem 1.5rem">
+            <!-- current model badge -->
+            <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem">
+              <div style="font-size:.72rem;color:var(--muted)">Active model</div>
+              <div style="font-family:monospace;font-size:.78rem;color:var(--accent2);background:var(--surface);border:1px solid var(--accent-border);border-radius:5px;padding:.2rem .65rem" x-text="currentModel || '…'"></div>
+              <span x-show="modelSaved" style="font-size:.72rem;color:var(--green)">Switched ✓</span>
+              <span x-show="busy" class="spinner"></span>
+            </div>
+            <!-- provider tabs -->
+            <div style="display:flex;border-bottom:1px solid var(--border);margin-bottom:.75rem;overflow-x:auto;scrollbar-width:none">
+              <template x-for="p in providers" :key="p.name">
+                <button style="padding:.35rem .85rem;font-size:.75rem;border:none;background:none;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;font-family:inherit"
+                        :style="{color: modelTab===p.name ? 'var(--accent2)' : 'var(--muted)', borderBottomColor: modelTab===p.name ? 'var(--accent)' : 'transparent'}"
+                        @click="modelTab=p.name" x-text="p.label||p.name">
+                </button>
+              </template>
+            </div>
+            <!-- model list -->
+            <div style="display:flex;flex-direction:column;gap:.25rem;margin-bottom:1rem">
+              <template x-for="m in (providers.find(p=>p.name===modelTab)?.models||[])" :key="m.name">
+                <div style="display:flex;align-items:center;padding:.35rem .65rem;border-radius:6px;cursor:pointer;border:1px solid transparent"
+                     :style="{background: modelSelected===m.name ? 'var(--accent-dim)' : 'transparent', borderColor: modelSelected===m.name ? 'var(--accent-border)' : 'transparent'}"
+                     @click="modelSelected=m.name">
+                  <span style="flex:1;font-family:monospace;font-size:.78rem" x-text="m.name"></span>
+                  <span x-show="m.name===currentModel" style="font-size:.68rem;color:var(--green)">active</span>
+                </div>
+              </template>
+              <div x-show="(providers.find(p=>p.name===modelTab)?.models||[]).length===0"
+                   style="color:var(--muted);font-size:.78rem;padding:.25rem 0">No models — check provider config.</div>
+            </div>
+            <button class="btn btn-primary" style="font-size:.8rem"
+                    @click="applyModel()"
+                    :disabled="!modelSelected || modelSelected===currentModel || busy">Apply model</button>
           </div>
+
         </div>
 
         <!-- ── LAB ────────────────────────────────────────────────── -->
         <div class="section" x-show="$store.f.activeTab?.type === 'lab'"
              x-data="labSection()">
           <!-- header row -->
-          <div class="sec-head" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
-            <div>
-              <div class="sec-title">Lab</div>
-              <div class="sec-sub">Build skill-sets. Define identity, add skills, test in sandbox, tag a version, spawn.</div>
-            </div>
-            <button class="btn btn-primary" @click="newWorkspace()" :disabled="busy">+ New workspace</button>
+          <div class="sec-head" style="margin-bottom:1.5rem">
+            <div class="sec-title">Lab</div>
+            <div class="sec-sub">Build skill-sets &mdash; identity, skills, sandbox, version, spawn.</div>
           </div>
 
-          <!-- workspace picker -->
-          <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:1.25rem;align-items:center">
-            <span style="font-size:.72rem;color:var(--muted);margin-right:.2rem">Workspaces:</span>
-            <span x-show="loading" class="spinner"></span>
-            <template x-for="ws in workspaces" :key="ws.slug">
-              <button style="padding:.2rem .75rem;border-radius:20px;border:1px solid;font-size:.75rem;cursor:pointer;font-family:inherit;transition:all .12s"
-                      :style="active?.slug === ws.slug
-                        ? 'background:var(--accent-dim);border-color:var(--accent-border);color:var(--text)'
-                        : 'background:transparent;border-color:var(--border);color:var(--muted2)'"
-                      @click="loadWorkspace(ws.slug)"
-                      x-text="ws.slug">
-              </button>
-            </template>
-            <span x-show="workspaces.length === 0 && !loading"
-                  style="font-size:.75rem;color:var(--muted)">
-              No workspaces yet. Click "+ New workspace" to create one.
-            </span>
-          </div>
+          <!-- two-column: sidebar + editor -->
+          <div style="display:flex;gap:1rem;align-items:flex-start">
 
-          <!-- editor — shown only when a workspace is active -->
-          <div x-show="active">
+            <!-- workspace sidebar -->
+            <div style="width:200px;flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+              <!-- sidebar header -->
+              <div style="padding:.55rem .75rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--surface2)">
+                <span style="font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)">Workspaces</span>
+                <button class="btn btn-primary" style="font-size:.65rem;padding:.15rem .55rem;line-height:1.4"
+                        @click="newWorkspace()" :disabled="busy">+</button>
+              </div>
+              <!-- search -->
+              <div style="padding:.35rem .5rem;border-bottom:1px solid var(--border)">
+                <input type="text" x-model="wsFilter" placeholder="Filter..."
+                       style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:.25rem .5rem;font-size:.72rem;color:var(--text);outline:none;font-family:inherit;box-sizing:border-box"
+                       @focus="$el.style.borderColor='var(--accent)'"
+                       @blur="$el.style.borderColor='var(--border)'">
+              </div>
+              <!-- list -->
+              <div style="max-height:calc(100vh - 280px);overflow-y:auto;scrollbar-width:thin">
+                <div x-show="loading" style="padding:.5rem .75rem;display:flex;align-items:center;gap:.4rem">
+                  <span class="spinner"></span>
+                </div>
+                <template x-for="ws in workspaces.filter(w => w.slug.toLowerCase().includes(wsFilter.toLowerCase()))" :key="ws.slug">
+                  <div style="padding:.38rem .75rem;cursor:pointer;font-size:.75rem;display:flex;align-items:center;gap:.4rem;border-left:2px solid transparent;transition:all .1s"
+                       :style="{background: active?.slug===ws.slug ? 'var(--accent-dim)' : 'transparent', borderLeftColor: active?.slug===ws.slug ? 'var(--accent)' : 'transparent', color: active?.slug===ws.slug ? 'var(--text)' : 'var(--muted2)'}"
+                       @click="loadWorkspace(ws.slug)">
+                    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="ws.slug"></span>
+                    <span x-show="ws.skill_count > 0"
+                          style="font-size:.62rem;background:var(--surface2);padding:.05rem .3rem;border-radius:6px;color:var(--muted);flex-shrink:0"
+                          x-text="ws.skill_count"></span>
+                  </div>
+                </template>
+                <div x-show="workspaces.length === 0 && !loading"
+                     style="color:var(--muted);font-size:.72rem;padding:.6rem .75rem">
+                  No workspaces yet.
+                </div>
+                <div x-show="wsFilter && workspaces.filter(w => w.slug.toLowerCase().includes(wsFilter.toLowerCase())).length === 0 && !loading"
+                     style="color:var(--muted);font-size:.72rem;padding:.6rem .75rem">
+                  No matches.
+                </div>
+              </div>
+            </div><!-- /sidebar -->
+
+            <!-- editor column -->
+            <div style="flex:1;min-width:0">
+
+          <!-- editor card -->
+          <div x-show="active" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
 
             <!-- workspace header bar -->
-            <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.75rem">
+            <div style="display:flex;align-items:center;gap:.6rem;padding:.65rem 1rem;border-bottom:1px solid var(--border);background:var(--surface2)">
               <span style="font-size:.95rem;font-weight:600" x-text="active?.slug"></span>
               <span x-show="busy" class="spinner"></span>
               <div style="flex:1"></div>
+              <button class="btn btn-ghost" style="font-size:.72rem"
+                      @click="$store.f.open('sandbox', null, { slug: active.slug, label: active.slug + ' \u00b7 sandbox' })"
+                      :disabled="!active">Test in sandbox →</button>
               <button class="btn btn-ghost" style="font-size:.72rem"
                       @click="tagVersion()" :disabled="busy">Tag version</button>
               <button class="btn btn-ghost"
@@ -722,37 +846,32 @@
             </div>
 
             <!-- file tab bar -->
-            <div style="display:flex;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none">
+            <div style="display:flex;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;background:var(--bg);padding:0 .5rem">
               <template x-for="fn in identityFiles" :key="fn">
-                <div style="padding:.3rem .85rem;cursor:pointer;font-size:.78rem;white-space:nowrap;border-bottom:2px solid transparent;transition:color .1s,border-color .1s"
-                     :style="activeFile === fn
-                       ? 'color:var(--text);border-bottom-color:var(--accent)'
-                       : 'color:var(--muted)'"
+                <div style="padding:.4rem .9rem;cursor:pointer;font-size:.75rem;white-space:nowrap;border-bottom:2px solid transparent;transition:color .1s,border-color .1s"
+                     :style="{color: activeFile===fn ? 'var(--text)' : 'var(--muted)', borderBottomColor: activeFile===fn ? 'var(--accent)' : 'transparent'}"
                      @click="switchFile(fn)"
-                     x-text="fn.replace('.md','')">
-                </div>
+                     x-text="fn.replace('.md','')"></div>
               </template>
-              <div style="padding:.3rem .85rem;cursor:pointer;font-size:.78rem;white-space:nowrap;border-bottom:2px solid transparent;transition:color .1s,border-color .1s"
-                   :style="activeFile === '_skills'
-                     ? 'color:var(--text);border-bottom-color:var(--accent)'
-                     : 'color:var(--muted)'"
+              <div style="padding:.4rem .9rem;cursor:pointer;font-size:.75rem;white-space:nowrap;border-bottom:2px solid transparent;transition:color .1s,border-color .1s"
+                   :style="{color: activeFile==='_skills' ? 'var(--text)' : 'var(--muted)', borderBottomColor: activeFile==='_skills' ? 'var(--accent)' : 'transparent'}"
                    @click="switchFile('_skills')">
                 Skills<span x-show="skills.length > 0"
-                            style="font-size:.65rem;color:var(--muted);margin-left:.3rem"
-                            x-text="`(${skills.length})`"></span>
+                            style="margin-left:.35rem;font-size:.65rem;background:var(--surface2);padding:.05rem .35rem;border-radius:8px;color:var(--muted)"
+                            x-text="skills.length"></span>
               </div>
             </div>
 
             <!-- identity file editor -->
-            <div x-show="activeFile !== '_skills'"
-                 style="background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:.75rem">
-              <textarea style="width:100%;height:300px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.6rem .8rem;color:var(--text);font-family:'Cascadia Code','Fira Code',Consolas,monospace;font-size:.75rem;resize:vertical;outline:none;transition:border-color .12s;line-height:1.6"
+            <div :style="{display: activeFile !== '_skills' ? 'flex' : 'none'}"
+                 style="flex-direction:column;gap:.6rem;padding:1rem">
+              <textarea style="width:100%;min-height:calc(100vh - 330px);background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:.7rem .9rem;color:var(--text);font-family:'Cascadia Code','Fira Code',Consolas,monospace;font-size:.75rem;resize:vertical;outline:none;transition:border-color .12s;line-height:1.6"
                         @focus="$el.style.borderColor='var(--accent)'"
                         @blur="$el.style.borderColor='var(--border)'"
                         x-model="fileContent">
               </textarea>
-              <div style="display:flex;justify-content:flex-end;align-items:center;gap:.5rem;margin-top:.5rem">
-                <span x-show="fileSaved" style="font-size:.72rem;color:var(--green)">Saved ✓</span>
+              <div style="display:flex;justify-content:flex-end;align-items:center;gap:.5rem">
+                <span x-show="fileSaved" style="font-size:.72rem;color:var(--green)">Saved &#10003;</span>
                 <button class="btn btn-primary" style="font-size:.75rem"
                         @click="saveFile()" :disabled="busy">Save</button>
               </div>
@@ -760,7 +879,7 @@
 
             <!-- skills editor -->
             <div x-show="activeFile === '_skills'"
-                 style="background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:.75rem">
+                 style="background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:.75rem;min-height:calc(100vh - 320px);overflow-y:auto">
               <div style="display:flex;justify-content:flex-end;margin-bottom:.6rem">
                 <button class="btn btn-primary" style="font-size:.75rem"
                         @click="addSkill()" :disabled="busy">+ Add skill</button>
@@ -786,66 +905,117 @@
               </div>
             </div>
 
-            <!-- sandbox panel -->
-            <div style="border:1px solid var(--border);border-radius:8px;background:var(--surface);margin-top:1rem">
-              <div style="display:flex;align-items:center;gap:.6rem;padding:.5rem .9rem;cursor:pointer"
-                   :style="sandboxOpen ? 'border-bottom:1px solid var(--border)' : ''"
-                   @click="sandboxOpen = !sandboxOpen">
-                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                     style="width:11px;height:11px;flex-shrink:0;transition:transform .15s"
-                     :style="sandboxOpen ? 'transform:rotate(0)' : 'transform:rotate(-90deg)'">
-                  <path d="M2 4l4 4 4-4"/>
-                </svg>
-                <span style="font-size:.82rem;font-weight:600">Sandbox</span>
-                <div style="width:7px;height:7px;border-radius:50%;flex-shrink:0;transition:background .3s"
-                     :style="`background:${sandboxStatus === 'loaded' ? 'var(--green)' : sandboxStatus === 'loading' ? 'var(--yellow)' : 'var(--muted)'}`">
-                </div>
-                <span style="font-size:.72rem;color:var(--muted)" x-text="sandboxStatus"></span>
-                <div style="flex:1"></div>
-                <button x-show="sandboxStatus === 'idle'" class="btn btn-primary" style="font-size:.72rem"
-                        @click.stop="sandboxOpen = true; loadSandbox()">Load</button>
-                <button x-show="sandboxStatus !== 'idle'" class="btn btn-ghost" style="font-size:.72rem"
-                        @click.stop="unloadSandbox()" :disabled="sandboxStatus === 'loading'">Unload</button>
+          </div><!-- /editor card -->
+
+              <!-- nothing selected yet -->
+              <div x-show="!active && !loading && workspaces.length > 0"
+                   style="color:var(--muted);font-size:.82rem;padding:1rem 0">
+                Select a workspace to start editing.
               </div>
-              <div x-show="sandboxOpen" style="padding:.65rem .9rem;display:flex;flex-direction:column;gap:.4rem">
-                <div style="height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:.3rem;scrollbar-width:thin;scrollbar-color:var(--border) transparent"
-                     x-ref="sbMsgs">
-                  <template x-if="sbMessages.length === 0">
-                    <p style="color:var(--muted);font-size:.75rem;text-align:center;padding:.75rem 0">
-                      Load a workspace to chat with it in isolation.
-                    </p>
-                  </template>
-                  <template x-for="(m, i) in sbMessages" :key="i">
-                    <div style="max-width:96%;padding:.35rem .65rem;border-radius:7px;font-size:.75rem;line-height:1.55;word-break:break-word;white-space:pre-wrap"
-                         :style="m.role === 'user'
-                           ? 'align-self:flex-end;background:var(--accent-dim);border:1px solid var(--accent-border)'
-                           : 'align-self:flex-start;background:var(--bg);border:1px solid var(--border)'"
-                         x-text="m.content">
-                    </div>
-                  </template>
-                </div>
-                <div style="display:flex;gap:.4rem">
-                  <input type="text"
-                         style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .65rem;color:var(--text);font-size:.78rem;font-family:inherit;outline:none;transition:border-color .12s"
-                         x-model="sbDraft"
-                         placeholder="Message sandbox…"
-                         :disabled="sandboxStatus !== 'loaded' || sbStreaming"
-                         @keydown.enter="sbSend()"
-                         @focus="$el.style.borderColor='var(--accent)'"
-                         @blur="$el.style.borderColor='var(--border)'">
-                  <button class="btn btn-primary" style="font-size:.75rem"
-                          @click="sbSend()"
-                          :disabled="sandboxStatus !== 'loaded' || sbStreaming || !sbDraft.trim()">Send</button>
-                </div>
-              </div>
+
+            </div><!-- /editor column -->
+          </div><!-- /two-column -->
+        </div>
+
+        <!-- ── SANDBOX (per-workspace chat tab) ──────────────────── -->
+        <div x-show="$store.f.activeTab?.type === 'sandbox'"
+             x-data="sandboxTab()"
+             style="position:relative;display:flex;flex-direction:column;height:calc(100vh - var(--tabbar-h) - var(--statusbar-h));overflow:hidden">
+
+          <!-- model picker overlay -->
+          <div x-show="modelOpen" x-cloak
+               style="position:absolute;top:36px;right:0;left:0;bottom:0;background:var(--surface);z-index:10;display:flex;flex-direction:column;border-top:1px solid var(--border)">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:.4rem .65rem;border-bottom:1px solid var(--border);flex-shrink:0">
+              <span style="font-size:.75rem;font-weight:600;color:var(--accent2)">Select model</span>
+              <button @click="modelOpen=false" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;line-height:1;padding:0 2px">&times;</button>
             </div>
+            <!-- provider tabs -->
+            <div style="display:flex;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto;scrollbar-width:none">
+              <template x-for="p in providers" :key="p.name">
+                <button style="padding:.3rem .65rem;font-size:.7rem;border:none;background:none;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;font-family:inherit"
+                        :style="{color: modelTab===p.name ? 'var(--accent2)' : 'var(--muted)', borderBottomColor: modelTab===p.name ? 'var(--accent)' : 'transparent'}"
+                        @click="modelTab=p.name" x-text="p.label||p.name">
+                </button>
+              </template>
+            </div>
+            <!-- model list -->
+            <div style="flex:1;overflow-y:auto;padding:.3rem .4rem">
+              <template x-for="m in (providers.find(p=>p.name===modelTab)?.models||[])" :key="m.name">
+                <div style="padding:.3rem .55rem;border-radius:5px;cursor:pointer;font-size:.72rem;font-family:monospace;display:flex;align-items:center;gap:.35rem"
+                     :style="{background: modelSelected===m.name ? 'var(--accent-dim)' : 'transparent', color: modelSelected===m.name ? 'var(--text)' : 'var(--muted2)'}"
+                     @click="modelSelected=m.name" x-text="m.name">
+                </div>
+              </template>
+            </div>
+            <!-- apply -->
+            <div style="padding:.4rem .45rem;border-top:1px solid var(--border);flex-shrink:0;display:flex;gap:.4rem;align-items:center">
+              <span x-show="status==='loading'" class="spinner"></span>
+              <button class="btn btn-primary" style="flex:1;font-size:.75rem"
+                      @click="applyModel()" :disabled="!modelSelected||status==='loading'">Load sandbox</button>
+            </div>
+          </div>
 
-          </div><!-- /editor area -->
-
-          <!-- nothing selected yet -->
-          <div x-show="!active && !loading && workspaces.length > 0"
-               style="color:var(--muted);font-size:.82rem;padding:.5rem 0">
-            Select a workspace above to start editing.
+          <!-- header -->
+          <div style="padding:.45rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.6rem;flex-shrink:0;background:var(--surface)">
+            <div style="width:7px;height:7px;border-radius:50%;flex-shrink:0;transition:background .3s"
+                 :style="`background:${status === 'loaded' ? 'var(--green)' : status === 'loading' ? 'var(--yellow)' : status === 'error' ? 'var(--red)' : 'var(--muted)'}`">
+            </div>
+            <span style="font-size:.88rem;font-weight:600" x-text="slug"></span>
+            <span style="font-size:.72rem;color:var(--muted)"
+                  x-text="status === 'loading' ? 'loading\u2026' : status === 'loaded' ? 'sandbox ready' : status === 'error' ? 'error' : 'pick a model'">
+            </span>
+            <div style="flex:1"></div>
+            <span class="rp-model" x-text="model || '\u2014 model'"
+                  @click="modelOpen=!modelOpen"
+                  style="cursor:pointer;font-size:.7rem" title="Switch model"></span>
+            <button class="btn btn-ghost" style="font-size:.72rem"
+                    @click="load()" :disabled="status === 'loading' || !model">\u21ba Reload</button>
+          </div>
+          <!-- messages -->
+          <div style="flex:1;overflow-y:auto;padding:.75rem 1rem;display:flex;flex-direction:column;gap:.4rem;scrollbar-width:thin;scrollbar-color:var(--border) transparent"
+               x-ref="msgs">
+            <template x-if="status === 'loading'">
+              <p style="color:var(--muted);font-size:.8rem;text-align:center;padding:2rem 0">
+                <span class="spinner"></span>&nbsp; Loading <strong x-text="slug"></strong> into sandbox\u2026
+              </p>
+            </template>
+            <template x-if="status === 'idle'">
+              <p style="color:var(--muted);font-size:.8rem;text-align:center;padding:2rem 0">Pick a model above to load this workspace.</p>
+            </template>
+            <template x-if="status === 'error'">
+              <p style="color:var(--red);font-size:.8rem;text-align:center;padding:2rem 0" x-text="errorMsg || 'Failed to load sandbox.'"></p>
+            </template>
+            <template x-if="status === 'loaded' && messages.length === 0">
+              <p style="color:var(--muted);font-size:.8rem;text-align:center;padding:2rem 0">
+                Sandbox ready. Say something to <strong x-text="slug"></strong>.
+              </p>
+            </template>
+            <template x-for="(m, i) in messages" :key="i">
+              <div style="max-width:80%;padding:.45rem .75rem;border-radius:8px;font-size:.82rem;line-height:1.55;word-break:break-word;white-space:pre-wrap"
+                   :style="m.role === 'user'
+                     ? 'align-self:flex-end;background:var(--accent-dim);border:1px solid var(--accent-border)'
+                     : 'align-self:flex-start;background:var(--surface);border:1px solid var(--border)'"
+                   x-text="m.content">
+              </div>
+            </template>
+          </div>
+          <!-- input -->
+          <div style="border-top:1px solid var(--border);padding:.55rem .75rem;display:flex;gap:.4rem;flex-shrink:0;background:var(--bg)">
+            <input type="text"
+                   style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:.4rem .75rem;color:var(--text);font-size:.82rem;font-family:inherit;outline:none;transition:border-color .12s"
+                   x-model="draft"
+                   placeholder="Message sandbox\u2026"
+                   :disabled="status !== 'loaded' || streaming"
+                   @keydown.enter="send()"
+                   @focus="$el.style.borderColor='var(--accent)'"
+                   @blur="$el.style.borderColor='var(--border)'">
+            <button class="btn btn-primary"
+                    @click="send()"
+                    :disabled="status !== 'loaded' || streaming || !draft.trim()">
+              <svg viewBox="0 0 20 20" fill="currentColor" style="width:13px;height:13px;flex-shrink:0">
+                <path d="M2.5 10 17.5 2.5 11.5 10 17.5 17.5z"/>
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -984,13 +1154,48 @@
 
       <!-- ── RIGHT PANEL: ART ───────────────────────────────────── -->
       <aside class="right-panel" :class="{open: $store.f.rightOpen}"
-             x-data="artPanel()">
+             x-data="artPanel()" style="position:relative;overflow:hidden">
         <div class="rp-header">
           <div class="rp-title">
             <div class="art-dot" :class="{live: ready}"></div>
             <span>Art</span>
           </div>
-          <span class="rp-model" x-text="model || '…'"></span>
+          <span class="rp-model" x-text="model || '…'"
+                @click="modelOpen=!modelOpen"
+                style="cursor:pointer" title="Switch model"></span>
+        </div>
+
+        <!-- model picker overlay -->
+        <div x-show="modelOpen" x-cloak
+             style="position:absolute;top:36px;right:0;left:0;bottom:0;background:var(--surface);z-index:10;display:flex;flex-direction:column;border-top:1px solid var(--border)">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:.4rem .65rem;border-bottom:1px solid var(--border);flex-shrink:0">
+            <span style="font-size:.75rem;font-weight:600;color:var(--accent2)">Select model</span>
+            <button @click="modelOpen=false" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;line-height:1;padding:0 2px">&times;</button>
+          </div>
+          <!-- provider tabs -->
+          <div style="display:flex;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto;scrollbar-width:none">
+            <template x-for="p in providers" :key="p.name">
+              <button style="padding:.3rem .65rem;font-size:.7rem;border:none;background:none;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;font-family:inherit"
+                      :style="{color: modelTab===p.name ? 'var(--accent2)' : 'var(--muted)', borderBottomColor: modelTab===p.name ? 'var(--accent)' : 'transparent'}"
+                      @click="modelTab=p.name" x-text="p.label||p.name">
+              </button>
+            </template>
+          </div>
+          <!-- model list -->
+          <div style="flex:1;overflow-y:auto;padding:.3rem .4rem">
+            <template x-for="m in (providers.find(p=>p.name===modelTab)?.models||[])" :key="m.name">
+              <div style="padding:.3rem .55rem;border-radius:5px;cursor:pointer;font-size:.72rem;font-family:monospace;display:flex;align-items:center;gap:.35rem"
+                   :style="{background: modelSelected===m.name ? 'var(--accent-dim)' : 'transparent', color: modelSelected===m.name ? 'var(--text)' : 'var(--muted2)'}"
+                   @click="modelSelected=m.name" x-text="m.name">
+              </div>
+            </template>
+          </div>
+          <!-- apply -->
+          <div style="padding:.4rem .45rem;border-top:1px solid var(--border);flex-shrink:0;display:flex;gap:.4rem;align-items:center">
+            <span x-show="switching" class="spinner"></span>
+            <button class="btn btn-primary" style="flex:1;font-size:.75rem"
+                    @click="applyModel()" :disabled="!modelSelected||modelSelected===model||switching">Apply</button>
+          </div>
         </div>
 
         <div class="rp-messages" x-ref="msgbox">
@@ -1078,6 +1283,7 @@
     arena:     'Arena',
     benchmark: 'Benchmark',
     settings:  'Settings',
+    sandbox:   'Sandbox',
   }
 
   document.addEventListener('alpine:init', () => {
@@ -1087,14 +1293,16 @@
       tabs:     [],
       activeId: null,
 
-      open(type, event) {
+      open(type, event, data = null) {
+        const key = data?.slug ? `${type}:${data.slug}` : type
         const forceNew = event?.ctrlKey || event?.metaKey
         if (!forceNew) {
-          const ex = this.tabs.find(t => t.type === type)
+          const ex = this.tabs.find(t => t.key === key)
           if (ex) { this.activeId = ex.id; return }
         }
         const id = `${type}-${Date.now()}`
-        this.tabs.push({ id, type, label: SECTION_LABELS[type] ?? type })
+        const label = data?.label ?? (data?.slug ? `${data.slug} · ${SECTION_LABELS[type] ?? type}` : SECTION_LABELS[type] ?? type)
+        this.tabs.push({ id, type, key, label, data })
         this.activeId = id
       },
 
@@ -1260,6 +1468,7 @@
   function labSection() {
     return {
       workspaces: [],
+      wsFilter: '',
       loading: false,
       busy: false,
       active: null,
@@ -1269,12 +1478,6 @@
       identityFiles: ['SOUL.md', 'AGENTS.md', 'TOOLS.md', 'HEARTBEAT.md', 'USER.md'],
       skills: [],
       skillsLoading: false,
-      sandboxOpen: false,
-      sandboxStatus: 'idle',
-      sbMessages: [],
-      sbDraft: '',
-      sbStreaming: false,
-      _sbHistory: [],
 
       async init() {
         await this.fetchWorkspaces();
@@ -1398,8 +1601,6 @@
           const r = await fetch(`/api/factory/workspaces/${slug}`, { method: 'DELETE' });
           if (r.ok) {
             this.active = null; this.skills = [];
-            this.sbMessages = []; this._sbHistory = [];
-            this.sandboxStatus = 'idle';
             await this.fetchWorkspaces();
           }
         } catch {}
@@ -1420,77 +1621,6 @@
           else { const d = await r.json().catch(() => ({})); alert('Error: ' + (d.detail || r.statusText)); }
         } catch (e) { alert('Error: ' + e.message); }
         this.busy = false;
-      },
-
-      async loadSandbox() {
-        if (!this.active) return;
-        this.sandboxStatus = 'loading';
-        try {
-          const r = await fetch('/api/factory/sandbox/load', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ slug: this.active.slug }),
-          });
-          if (r.ok) {
-            this.sandboxStatus = 'loaded';
-            this.sbMessages = []; this._sbHistory = [];
-          } else {
-            this.sandboxStatus = 'idle';
-            const d = await r.json().catch(() => ({}));
-            alert('Sandbox load failed: ' + (d.detail || r.statusText));
-          }
-        } catch (e) { this.sandboxStatus = 'idle'; alert('Sandbox error: ' + e.message); }
-      },
-
-      async unloadSandbox() {
-        this.busy = true;
-        try { await fetch('/api/factory/sandbox/unload', { method: 'POST' }); } catch {}
-        this.sandboxStatus = 'idle';
-        this.sbMessages = []; this._sbHistory = [];
-        this.busy = false;
-      },
-
-      _scrollSb() {
-        this.$nextTick(() => { const el = this.$refs.sbMsgs; if (el) el.scrollTop = el.scrollHeight; });
-      },
-
-      async sbSend() {
-        const text = this.sbDraft.trim();
-        if (!text || this.sbStreaming || this.sandboxStatus !== 'loaded') return;
-        this.sbDraft = '';
-        this._sbHistory.push({ role: 'user', content: text });
-        this.sbMessages.push({ role: 'user', content: text });
-        const asst = { role: 'assistant', content: '' };
-        this.sbMessages.push(asst);
-        this.sbStreaming = true;
-        this._scrollSb();
-        try {
-          const r = await fetch('/api/factory/sandbox/chat', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ messages: [...this._sbHistory] }),
-          });
-          if (!r.ok || !r.body) { asst.content = 'Error (' + r.status + ')'; this.sbStreaming = false; return; }
-          const reader = r.body.getReader();
-          const decoder = new TextDecoder();
-          let buf = '';
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buf += decoder.decode(value, { stream: true });
-            const lines = buf.split('\n'); buf = lines.pop();
-            for (const line of lines) {
-              if (!line.startsWith('data: ')) continue;
-              const raw = line.slice(6).trim();
-              if (raw === '[DONE]') break;
-              try {
-                const parsed = JSON.parse(raw);
-                const delta = parsed?.choices?.[0]?.delta?.content || parsed?.text || '';
-                if (delta) { asst.content += delta; this._scrollSb(); }
-              } catch {}
-            }
-          }
-          this._sbHistory.push({ role: 'assistant', content: asst.content });
-        } catch (e) { asst.content = 'Network error: ' + e.message; }
-        finally { this.sbStreaming = false; this._scrollSb(); }
       },
     }
   }
@@ -1567,6 +1697,139 @@
     }
   }
 
+  // ── Sandbox tab ────────────────────────────────────────────────────────────
+  function sandboxTab() {
+    return {
+      slug:      '',
+      status:    'idle',   // idle | loading | loaded | error
+      errorMsg:  '',
+      messages:  [],
+      draft:     '',
+      streaming: false,
+      _history:  [],
+      // model picker
+      model:         '',
+      modelOpen:     false,
+      providers:     [],
+      modelTab:      '',
+      modelSelected: '',
+
+      init() {
+        this.slug = this.$store.f.activeTab?.data?.slug || '';
+        this.$watch('$store.f.activeId', () => {
+          const tab = this.$store.f.activeTab;
+          if (tab?.type !== 'sandbox') return;
+          const newSlug = tab.data?.slug || '';
+          if (newSlug && newSlug !== this.slug) {
+            this.slug = newSlug;
+            this.messages = [];
+            this._history = [];
+            this.status = 'idle';
+            if (this.model) this.load();
+          }
+        });
+        // fetch providers for model picker
+        fetch('/api/models', { signal: AbortSignal.timeout(4000) })
+          .then(r => r.ok ? r.json() : null)
+          .then(d => {
+            if (!d) return;
+            this.providers = d.providers || [];
+            if (!this.modelTab && this.providers.length) this.modelTab = this.providers[0].name;
+          })
+          .catch(() => {});
+      },
+
+      applyModel() {
+        if (!this.modelSelected) return;
+        this.model = this.modelSelected;
+        this.modelOpen = false;
+        this.messages = [];
+        this._history = [];
+        this.load();
+      },
+
+      async load() {
+        if (!this.slug || !this.model) return;
+        this.status = 'loading';
+        this.errorMsg = '';
+        try {
+          const r = await fetch('/api/factory/sandbox/load', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ slug: this.slug, model: this.model }),
+          });
+          if (r.ok) {
+            this.status = 'loaded';
+            this.messages = [];
+            this._history = [];
+          } else {
+            const d = await r.json().catch(() => ({}));
+            this.status = 'error';
+            this.errorMsg = d.detail || r.statusText;
+          }
+        } catch (e) {
+          this.status = 'error';
+          this.errorMsg = e.message;
+        }
+      },
+
+      scrollBottom() {
+        this.$nextTick(() => { const el = this.$refs.msgs; if (el) el.scrollTop = el.scrollHeight; });
+      },
+
+      async send() {
+        const text = this.draft.trim();
+        if (!text || this.streaming || this.status !== 'loaded') return;
+        this.draft = '';
+        this._history.push({ role: 'user', content: text });
+        this.messages.push({ role: 'user', content: text });
+        this.messages.push({ role: 'assistant', content: '', streaming: true });
+        this.streaming = true;
+        this.scrollBottom();
+        try {
+          const r = await fetch('/api/factory/sandbox/chat', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: [...this._history] }),
+          });
+          if (!r.ok || !r.body) {
+            this.messages[this.messages.length - 1].content = 'Error (' + r.status + ')';
+            this.messages[this.messages.length - 1].streaming = false;
+            this.streaming = false;
+            return;
+          }
+          const reader = r.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const lines = buf.split('\n'); buf = lines.pop();
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              const raw = line.slice(6).trim();
+              if (raw === '[DONE]') break;
+              try {
+                const parsed = JSON.parse(raw);
+                const delta = parsed?.choices?.[0]?.delta?.content || parsed?.text || '';
+                if (delta) {
+                  this.messages[this.messages.length - 1].content += delta;
+                  this.scrollBottom();
+                }
+              } catch {}
+            }
+          }
+          this._history.push({ role: 'assistant', content: this.messages[this.messages.length - 1].content });
+        } catch (e) {
+          this.messages[this.messages.length - 1].content = 'Network error: ' + e.message;
+        } finally {
+          this.messages[this.messages.length - 1].streaming = false;
+          this.streaming = false;
+          this.scrollBottom();
+        }
+      },
+    }
+  }
+
   // ── Art panel ──────────────────────────────────────────────────────
   function artPanel() {
     return {
@@ -1575,6 +1838,12 @@
       streaming: false,
       ready:    false,
       model:    '',
+      // model picker
+      modelOpen:    false,
+      providers:    [],
+      modelTab:     '',
+      modelSelected:'',
+      switching:    false,
 
       async init() {
         // Probe agent health via factory
@@ -1585,14 +1854,31 @@
             this.ready = d.services?.agent === 'ok'
           }
         } catch { this.ready = false }
-        // Model name from agent
+        // Models + providers
         try {
           const r = await fetch('/api/models', { signal: AbortSignal.timeout(4000) })
           if (r.ok) {
             const d = await r.json()
             this.model = d?.current || 'art'
+            this.modelSelected = d?.current || ''
+            this.providers = d.providers || []
+            if (!this.modelTab && this.providers.length) this.modelTab = this.providers[0].name
           }
         } catch {}
+      },
+
+      async applyModel() {
+        if (!this.modelSelected || this.modelSelected === this.model) return
+        this.switching = true
+        try {
+          const r = await fetch('/api/model', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: this.modelSelected }),
+          })
+          if (r.ok) { this.model = this.modelSelected; this.modelOpen = false }
+        } catch {}
+        this.switching = false
       },
 
       autosize(el) {
@@ -1630,8 +1916,8 @@
             body:    JSON.stringify({ messages: this.messages.slice(0, -1) }),
           })
           if (!r.ok || !r.body) {
-            asst.content = 'Connection error (' + r.status + ').'
-            asst.streaming = false
+            this.messages[this.messages.length - 1].content = 'Connection error (' + r.status + ').'
+            this.messages[this.messages.length - 1].streaming = false
             this.streaming = false
             return
           }
@@ -1656,19 +1942,148 @@
                   || parsed?.text
                   || ''
                 if (delta) {
-                  asst.content += delta
+                  this.messages[this.messages.length - 1].content += delta
                   this.scrollBottom()
                 }
               } catch {}
             }
           }
         } catch (e) {
-          asst.content = 'Network error: ' + e.message
+          this.messages[this.messages.length - 1].content = 'Network error: ' + e.message
         } finally {
-          asst.streaming = false
+          this.messages[this.messages.length - 1].streaming = false
           this.streaming = false
           this.scrollBottom()
         }
+      },
+    }
+  }
+
+  // ── Art Office section ────────────────────────────────────────────────────
+  function artOfficeSection() {
+    return {
+      tab:           'identity',
+      identityFile:  'SOUL.md',
+      identityFiles: ['SOUL.md', 'AGENTS.md', 'TOOLS.md', 'HEARTBEAT.md', 'USER.md'],
+      fileContent:   '', fileSaved: false,
+      memContent:    '', memSaved:  false,
+      skills:        [], skillsLoading: false,
+      providers:     [], currentModel: '', modelTab: '', modelSelected: '', modelSaved: false,
+      busy: false,
+
+      async init() {
+        await Promise.all([this.switchFile('SOUL.md'), this.loadMemory(), this.loadSkills(), this.loadModels()])
+      },
+
+      async switchTab(t) {
+        this.tab = t
+        if (t === 'memory'   && !this.memContent)      await this.loadMemory()
+        if (t === 'skills')                             await this.loadSkills()
+        if (t === 'model'    && !this.providers.length) await this.loadModels()
+      },
+
+      async switchFile(name) {
+        this.identityFile = name; this.fileSaved = false
+        try {
+          const r = await fetch(`/api/workspace/files/${encodeURIComponent(name)}`)
+          if (r.ok) { const d = await r.json(); this.fileContent = d.content }
+        } catch {}
+      },
+
+      async saveFile() {
+        this.busy = true
+        try {
+          const r = await fetch(`/api/workspace/files/${encodeURIComponent(this.identityFile)}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: this.fileContent }),
+          })
+          if (r.ok) { this.fileSaved = true; setTimeout(() => { this.fileSaved = false }, 2500) }
+        } catch {}
+        this.busy = false
+      },
+
+      async loadMemory() {
+        try {
+          const r = await fetch('/api/workspace/memory')
+          if (r.ok) { const d = await r.json(); this.memContent = d.content }
+        } catch {}
+      },
+
+      async saveMemory() {
+        this.busy = true
+        try {
+          const r = await fetch('/api/workspace/memory', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: this.memContent }),
+          })
+          if (r.ok) { this.memSaved = true; setTimeout(() => { this.memSaved = false }, 2500) }
+        } catch {}
+        this.busy = false
+      },
+
+      async loadSkills() {
+        this.skillsLoading = true
+        try {
+          const r = await fetch('/api/workspace/skills')
+          if (r.ok) { const d = await r.json(); this.skills = d.skills || [] }
+        } catch {}
+        this.skillsLoading = false
+      },
+
+      async addSkill() {
+        const name = prompt('Skill name (e.g. python_coder):')
+        if (!name?.trim()) return
+        const content = prompt(`SKILL.md content for "${name.trim()}":`)
+        if (content === null) return
+        this.busy = true
+        try {
+          const r = await fetch(`/api/workspace/skills/${encodeURIComponent(name.trim())}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content }),
+          })
+          if (r.ok) await this.loadSkills()
+        } catch {}
+        this.busy = false
+      },
+
+      async deleteSkill(name) {
+        if (!confirm(`Delete skill "${name}"?`)) return
+        this.busy = true
+        try {
+          const r = await fetch(`/api/workspace/skills/${encodeURIComponent(name)}`, { method: 'DELETE' })
+          if (r.ok) this.skills = this.skills.filter(s => s.name !== name)
+        } catch {}
+        this.busy = false
+      },
+
+      async loadModels() {
+        try {
+          const r = await fetch('/api/models')
+          if (r.ok) {
+            const d = await r.json()
+            this.currentModel  = d.current
+            this.providers     = d.providers || []
+            this.modelSelected = d.current
+            if (!this.modelTab && this.providers.length) this.modelTab = this.providers[0].name
+          }
+        } catch {}
+      },
+
+      async applyModel() {
+        if (!this.modelSelected || this.modelSelected === this.currentModel) return
+        this.busy = true
+        try {
+          const r = await fetch('/api/model', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: this.modelSelected }),
+          })
+          if (r.ok) {
+            this.currentModel = this.modelSelected
+            this.modelSaved   = true
+            setTimeout(() => { this.modelSaved = false }, 3000)
+          }
+        } catch {}
+        this.busy = false
       },
     }
   }

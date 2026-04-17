@@ -20,6 +20,9 @@ from handlers import (
     handle_get_mcp, handle_add_mcp, handle_del_mcp,
     handle_list_cron, handle_add_cron, handle_del_cron,
     handle_toggle_cron, handle_run_cron,
+    handle_workspace_get_file, handle_workspace_put_file,
+    handle_workspace_get_memory, handle_workspace_put_memory,
+    handle_workspace_get_skills, handle_workspace_put_skill, handle_workspace_delete_skill,
 )
 
 
@@ -84,6 +87,13 @@ async def run() -> None:
     app.router.add_delete("/api/cron/{id}",      handle_del_cron)
     app.router.add_post("/api/cron/{id}/toggle", handle_toggle_cron)
     app.router.add_post("/api/cron/{id}/run",    handle_run_cron)
+    app.router.add_get("/api/workspace/files/{name}",    handle_workspace_get_file)
+    app.router.add_put("/api/workspace/files/{name}",    handle_workspace_put_file)
+    app.router.add_get("/api/workspace/memory",          handle_workspace_get_memory)
+    app.router.add_put("/api/workspace/memory",          handle_workspace_put_memory)
+    app.router.add_get("/api/workspace/skills",          handle_workspace_get_skills)
+    app.router.add_put("/api/workspace/skills/{name}",   handle_workspace_put_skill)
+    app.router.add_delete("/api/workspace/skills/{name}",handle_workspace_delete_skill)
 
     runner = web.AppRunner(app)
     await runner.setup()

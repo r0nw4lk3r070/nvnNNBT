@@ -375,6 +375,92 @@ async def handle_set_model(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "model": model})
 
 
+# ── Workspace file management (Art Office) ───────────────────────────────────
+
+_IDENTITY_FILES = {"SOUL.md", "AGENTS.md", "TOOLS.md", "HEARTBEAT.md", "USER.md"}
+
+
+async def handle_workspace_get_file(request: web.Request) -> web.Response:
+    name = request.match_info["name"]
+    if name not in _IDENTITY_FILES:
+        return web.Response(status=400, text="invalid filename")
+    path = state.WORKSPACE_PATH / name
+    content = path.read_text(encoding="utf-8") if path.exists() else ""
+    return web.json_response({"name": name, "content": content})
+
+
+async def handle_workspace_put_file(request: web.Request) -> web.Response:
+    name = request.match_info["name"]
+    if name not in _IDENTITY_FILES:
+        return web.Response(status=400, text="invalid filename")
+    try:
+        body = await request.json()
+    except Exception:
+        return web.Response(status=400, text="invalid JSON")
+    content = body.get("content", "")
+    (state.WORKSPACE_PATH / name).write_text(content, encoding="utf-8")
+    logger.info("workspace: saved {}", name)
+    return web.json_response({"ok": True})
+
+
+async def handle_workspace_get_memory(_: web.Request) -> web.Response:
+    path = state.WORKSPACE_PATH / "memory" / "MEMORY.md"
+    content = path.read_text(encoding="utf-8") if path.exists() else ""
+    return web.json_response({"content": content})
+
+
+async def handle_workspace_put_memory(request: web.Request) -> web.Response:
+    try:
+        body = await request.json()
+    except Exception:
+        return web.Response(status=400, text="invalid JSON")
+    path = state.WORKSPACE_PATH / "memory" / "MEMORY.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body.get("content", ""), encoding="utf-8")
+    logger.info("workspace: saved memory/MEMORY.md")
+    return web.json_response({"ok": True})
+
+
+async def handle_workspace_get_skills(_: web.Request) -> web.Response:
+    skills_dir = state.WORKSPACE_PATH / "skills"
+    skills = []
+    if skills_dir.exists():
+        for d in sorted(skills_dir.iterdir()):
+            if not d.is_dir():
+                continue
+            skill_file = d / "SKILL.md"
+            content = skill_file.read_text(encoding="utf-8") if skill_file.exists() else ""
+            skills.append({"name": d.name, "content": content})
+    return web.json_response({"skills": skills})
+
+
+async def handle_workspace_put_skill(request: web.Request) -> web.Response:
+    name = request.match_info["name"]
+    if not re.match(r"^[a-zA-Z0-9_\-]+$", name):
+        return web.Response(status=400, text="invalid skill name")
+    try:
+        body = await request.json()
+    except Exception:
+        return web.Response(status=400, text="invalid JSON")
+    skill_dir = state.WORKSPACE_PATH / "skills" / name
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    (skill_dir / "SKILL.md").write_text(body.get("content", ""), encoding="utf-8")
+    logger.info("workspace: saved skill '{}'", name)
+    return web.json_response({"ok": True})
+
+
+async def handle_workspace_delete_skill(request: web.Request) -> web.Response:
+    name = request.match_info["name"]
+    if not re.match(r"^[a-zA-Z0-9_\-]+$", name):
+        return web.Response(status=400, text="invalid skill name")
+    import shutil
+    skill_dir = state.WORKSPACE_PATH / "skills" / name
+    if skill_dir.exists():
+        shutil.rmtree(skill_dir)
+        logger.info("workspace: deleted skill '{}'", name)
+    return web.json_response({"ok": True})
+
+
 # ── Chat storage handlers ────────────────────────────────────────────────────
 
 async def handle_list_chats(_: web.Request) -> web.Response:
