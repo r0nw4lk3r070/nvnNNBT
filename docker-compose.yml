@@ -40,6 +40,9 @@ services:
       AGENT_IMAGE: nvnnnbt-agent:latest
       COMPOSE_NETWORK: nvnnnbt-net
       FACTORY_TOKEN: ${FACTORY_TOKEN:-}
+      # Set to your physical host RAM in MB so the dashboard shows real memory.
+      # Example: 32768 for 32 GB. Leave 0 to use container-visible RAM (WSL2 limit).
+      HOST_RAM_MB: ${HOST_RAM_MB:-0}
     volumes:
       - ./data:/app/data
       - ./workspace/workspaces:/app/data/workspaces
