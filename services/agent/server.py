@@ -24,6 +24,8 @@ from handlers import (
     handle_workspace_get_memory, handle_workspace_put_memory,
     handle_workspace_get_skills, handle_workspace_put_skill, handle_workspace_delete_skill,
     handle_agent_status, handle_agent_settings_get, handle_agent_settings_put,
+    handle_providers_list, handle_provider_upsert, handle_provider_delete,
+    handle_provider_discover, handle_provider_test,
 )
 
 
@@ -98,6 +100,11 @@ async def run() -> None:
     app.router.add_get("/api/status",                    handle_agent_status)
     app.router.add_get("/api/settings",                  handle_agent_settings_get)
     app.router.add_put("/api/settings",                  handle_agent_settings_put)
+    app.router.add_get("/api/providers",                              handle_providers_list)
+    app.router.add_post("/api/providers",                             handle_provider_upsert)
+    app.router.add_delete("/api/providers/{name}",                    handle_provider_delete)
+    app.router.add_get("/api/providers/{name}/discover",              handle_provider_discover)
+    app.router.add_post("/api/providers/test",                        handle_provider_test)
 
     runner = web.AppRunner(app)
     await runner.setup()
