@@ -20,6 +20,7 @@ from routers import system as system_router
 from routers import sandbox as sandbox_router
 from routers import agents as agents_router
 from routers import teams as teams_router
+from routers import benchmark as benchmark_router
 
 # ── Config ────────────────────────────────────────────────────────────────────
 AGENT_URL     = os.environ.get("AGENT_URL",       "http://agent:6161")
@@ -47,6 +48,7 @@ app.include_router(system_router.router)
 app.include_router(sandbox_router.router)
 app.include_router(agents_router.router)
 app.include_router(teams_router.router)
+app.include_router(benchmark_router.router)
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
