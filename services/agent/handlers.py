@@ -750,21 +750,24 @@ async def handle_agent_status(_: web.Request) -> web.Response:
 
 
 async def handle_agent_settings_get(_: web.Request) -> web.Response:
-    """Return editable settings: model and Ollama base URL."""
+    """Return editable settings: model, Ollama base URL, maxToolIterations."""
     try:
         cfg = state._read_config_raw()
-        model    = cfg.get("agents", {}).get("defaults", {}).get("model", "")
-        providers = cfg.get("providers", {})
-        local_cfg = providers.get("local") or {}
+        defaults    = cfg.get("agents", {}).get("defaults", {})
+        model       = defaults.get("model", "")
+        max_iter    = defaults.get("maxToolIterations", 20)
+        providers   = cfg.get("providers", {})
+        local_cfg   = providers.get("local") or {}
         ollama_base = local_cfg.get("apiBase", "") or local_cfg.get("api_base", "")
     except Exception:
         model = ""
         ollama_base = ""
-    return web.json_response({"model": model, "ollamaBase": ollama_base})
+        max_iter = 20
+    return web.json_response({"model": model, "ollamaBase": ollama_base, "maxToolIterations": max_iter})
 
 
 async def handle_agent_settings_put(request: web.Request) -> web.Response:
-    """Update model and/or Ollama base URL in config.json."""
+    """Update model, Ollama base URL and/or maxToolIterations in config.json."""
     try:
         body = await request.json()
     except Exception:
@@ -775,6 +778,11 @@ async def handle_agent_settings_put(request: web.Request) -> web.Response:
             cfg.setdefault("agents", {}).setdefault("defaults", {})["model"] = body["model"]
         if "ollamaBase" in body and body["ollamaBase"]:
             cfg.setdefault("providers", {}).setdefault("local", {})["apiBase"] = body["ollamaBase"]
+        if "maxToolIterations" in body:
+            val = int(body["maxToolIterations"])
+            if not (1 <= val <= 200):
+                return web.Response(status=400, text="maxToolIterations must be 1–200")
+            cfg.setdefault("agents", {}).setdefault("defaults", {})["maxToolIterations"] = val
         state._write_config_raw(cfg)
     except Exception as e:
         return web.Response(status=500, text=str(e))
