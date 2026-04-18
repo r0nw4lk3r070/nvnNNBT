@@ -146,7 +146,7 @@ def _make_workspace(path: Path, identity_files: dict[str, str]) -> None:
 async def list_teams() -> dict:
     with get_conn(DB_PATH) as conn:
         rows = conn.execute(
-            "SELECT slug, name, orchestrator_slug, created_at FROM agent_teams ORDER BY created_at DESC"
+            "SELECT slug, name, orchestrator_slug, created_at, mode FROM agent_teams ORDER BY created_at DESC"
         ).fetchall()
 
     teams = []
@@ -195,6 +195,7 @@ async def list_teams() -> dict:
             "members":           member_list,
             "member_count":      len(member_list),
             "created_at":        r[3],
+            "mode":              r[4] if r[4] else "production",
         })
 
     return {"teams": teams}
@@ -237,6 +238,14 @@ class CreateTeamBody(BaseModel):
     members: list[str]           # list of role names, e.g. ["fetcher", "writer"]
     manager_model: str = "qwen3:1.7b"
     member_model:  str = "qwen3:1.7b"
+
+
+class SpawnTeamBody(BaseModel):
+    mode: str = "production"     # "test" or "production"
+
+
+class SetModeBody(BaseModel):
+    mode: str                    # "test" or "production"
 
 
 @router.post("")
@@ -369,8 +378,45 @@ def _parse_ports(ports_str: str) -> tuple[int | None, int | None]:
     return gateway, chat
 
 
+@router.get("/{slug}/log")
+async def get_team_log(slug: str, limit: int = 100) -> dict:
+    """Read delegation log from team's shared.db."""
+    db_path = TEAMS_ROOT / slug / "knowledge" / "shared.db"
+    if not db_path.exists():
+        return {"entries": []}
+    try:
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT id, agent, action, detail, created_at FROM log ORDER BY id DESC LIMIT ?",
+            (limit,)
+        ).fetchall()
+        conn.close()
+        return {"entries": [dict(r) for r in reversed(rows)]}
+    except Exception:
+        return {"entries": []}
+
+
+@router.post("/{slug}/mode")
+async def set_team_mode(slug: str, body: SetModeBody) -> dict:
+    """Flip a team between test and production mode."""
+    if body.mode not in ("test", "production"):
+        raise HTTPException(status_code=400, detail="mode must be 'test' or 'production'")
+    with get_conn(DB_PATH) as conn:
+        row = conn.execute("SELECT slug FROM agent_teams WHERE slug=?", (slug,)).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Team '{slug}' not found")
+    with get_conn(DB_PATH) as conn:
+        conn.execute("UPDATE agent_teams SET mode=? WHERE slug=?", (body.mode, slug))
+    log_event("team_mode", target_type="team", target_slug=slug,
+              detail=f"Team '{slug}' mode set to '{body.mode}'")
+    return {"ok": True, "slug": slug, "mode": body.mode}
+
+
 @router.post("/{slug}/spawn")
-async def spawn_team(slug: str) -> dict:
+async def spawn_team(slug: str, body: SpawnTeamBody = None) -> dict:
+    if body is None:
+        body = SpawnTeamBody()
     if not HOST_PROJECT:
         raise HTTPException(status_code=503, detail="HOST_PROJECT_PATH env var not set")
 
@@ -518,11 +564,11 @@ async def spawn_team(slug: str) -> dict:
                 )
             spawned.append(manager_slug)
 
-        # Update team with manager slug
+        # Update team with manager slug + mode
         with get_conn(DB_PATH) as conn:
             conn.execute(
-                "UPDATE agent_teams SET orchestrator_slug=? WHERE slug=?",
-                (manager_slug, slug),
+                "UPDATE agent_teams SET orchestrator_slug=?, mode=? WHERE slug=?",
+                (manager_slug, body.mode, slug),
             )
 
     except (docker.errors.ImageNotFound, docker.errors.APIError) as e:

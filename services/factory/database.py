@@ -126,11 +126,22 @@ CREATE TABLE IF NOT EXISTS events (
 """
 
 
+# Migrations — applied after schema init (idempotent: errors ignored)
+_MIGRATIONS = [
+    "ALTER TABLE agent_teams ADD COLUMN mode TEXT DEFAULT 'production'",
+]
+
+
 def init_db(path: Path = DB_PATH) -> None:
     """Create all tables if they don't exist yet."""
     path.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(path)
     con.executescript(_SCHEMA)
+    for migration in _MIGRATIONS:
+        try:
+            con.execute(migration)
+        except sqlite3.OperationalError:
+            pass  # column already exists
     con.commit()
     con.close()
 
