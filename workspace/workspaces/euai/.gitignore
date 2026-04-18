@@ -1,6 +1,9 @@
-/*
-!memory/
-!SOUL.md
-!USER.md
-!memory/MEMORY.md
-!.gitignore
+# Runtime files only — content goes to git
+memory/history.jsonl
+memory/HISTORY.md.bak
+memory/.cursor
+memory/.dream_cursor
+memory/chats/
+sessions/
+knowledge/vectors.db
+.nanobot/

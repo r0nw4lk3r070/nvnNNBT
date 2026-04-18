@@ -13,6 +13,7 @@ data/workspaces/*/knowledge/vectors.db
 workspace/workspaces/*/memory/history.jsonl
 workspace/workspaces/*/sessions/
 workspace/workspaces/*/knowledge/vectors.db
+**/.nanobot/
 skill-sets/*/memory/chats/
 skill-sets/*/sessions/
 __pycache__/
