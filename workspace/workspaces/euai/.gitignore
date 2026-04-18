@@ -7,3 +7,5 @@ memory/chats/
 sessions/
 knowledge/vectors.db
 .nanobot/
+config.json
+cron/

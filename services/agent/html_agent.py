@@ -280,10 +280,10 @@ function formatAssistant(text) {
   if (!text) return '<span class="thinking"><span></span><span></span><span></span></span>';
   // Simple markdown: code blocks, bold, italic
   return text
-    .replace(/```([\s\S]*?)```/g, (_, c) => `<pre><code>${esc(c)}</code></pre>`)
+    .replace(/```([\\s\\S]*?)```/g, (_, c) => `<pre><code>${esc(c)}</code></pre>`)
     .replace(/`([^`]+)`/g,       (_, c) => `<code>${esc(c)}</code>`)
-    .replace(/\*\*(.+?)\*\*/g,   (_, c) => `<strong>${c}</strong>`)
-    .replace(/\*(.+?)\*/g,       (_, c) => `<em>${c}</em>`)
+    .replace(/\\*\\*(.+?)\\*\\*/g,   (_, c) => `<strong>${c}</strong>`)
+    .replace(/\\*(.+?)\\*/g,       (_, c) => `<em>${c}</em>`)
     .replace(/\\n/g, '<br>');
 }
 

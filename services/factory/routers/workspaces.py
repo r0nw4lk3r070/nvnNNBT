@@ -146,6 +146,7 @@ async def create_workspace(body: CreateWorkspaceBody) -> dict:
     # Ensure config.json exists so spawned agents can start
     config_file = ws / "config.json"
     if not config_file.exists():
+        ollama_base = os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
         _default_config = {
             "agents": {
                 "defaults": {
@@ -161,7 +162,7 @@ async def create_workspace(body: CreateWorkspaceBody) -> dict:
             },
             "channels": {"sendProgress": False, "sendToolHints": False, "sendMaxRetries": 3},
             "providers": {
-                "local": {"label": "Local", "apiKey": "", "apiBase": "http://ollama:11434/v1"},
+                "local": {"label": "Local", "apiKey": "", "apiBase": f"{ollama_base}/v1"},
                 "xai":   {"label": "xAI",   "apiKey": "", "apiKeyEnv": "GROK_API_KEY",
                           "apiBase": "https://api.x.ai/v1",
                           "models": ["grok-3-mini", "grok-3"]},
