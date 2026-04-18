@@ -1336,15 +1336,110 @@
         </div>
 
         <!-- ── TEAMS ───────────────────────────────────────────────── -->
-        <div class="section" x-show="$store.f.activeTab?.type === 'teams'">
-          <div class="sec-head">
-            <div class="sec-title">Teams</div>
-            <div class="sec-sub">Build multi-agent teams with a shared knowledge center.</div>
+        <div class="section" x-show="$store.f.activeTab?.type === 'teams'"
+             x-data="teamsSection()">
+          <div class="sec-head" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+            <div>
+              <div class="sec-title">Teams</div>
+              <div class="sec-sub">Multi-agent teams with a shared knowledge base. Each member is a full agent.</div>
+            </div>
+            <button class="btn btn-primary" @click="createOpen = !createOpen">+ New team</button>
           </div>
-          <div class="card">
-            <h3>Team builder <span class="phase">Phase 3</span></h3>
-            <p>Assign spawned agents to a team. Set an orchestrator. Connect a shared knowledge library. Members can query the shared knowledge base at runtime.</p>
+
+          <!-- create form -->
+          <div x-show="createOpen"
+               style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem 1.1rem;margin-bottom:1rem">
+            <div style="font-size:.85rem;font-weight:600;margin-bottom:.75rem">Create new team</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.6rem">
+              <div style="display:flex;flex-direction:column;gap:.25rem">
+                <label style="font-size:.7rem;color:var(--muted)">Slug (lowercase, no spaces)</label>
+                <input type="text" x-model="form.slug" placeholder="editorial"
+                       style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .65rem;color:var(--text);font-size:.82rem;font-family:monospace;outline:none">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:.25rem">
+                <label style="font-size:.7rem;color:var(--muted)">Display name</label>
+                <input type="text" x-model="form.name" placeholder="Editorial"
+                       style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .65rem;color:var(--text);font-size:.82rem;font-family:inherit;outline:none">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:.25rem">
+                <label style="font-size:.7rem;color:var(--muted)">Manager model</label>
+                <input type="text" x-model="form.manager_model" placeholder="qwen3:1.7b"
+                       style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .65rem;color:var(--text);font-size:.82rem;font-family:monospace;outline:none">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:.25rem">
+                <label style="font-size:.7rem;color:var(--muted)">Member model</label>
+                <input type="text" x-model="form.member_model" placeholder="qwen3:1.7b"
+                       style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .65rem;color:var(--text);font-size:.82rem;font-family:monospace;outline:none">
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:.25rem;margin-bottom:.75rem">
+              <label style="font-size:.7rem;color:var(--muted)">Member roles (comma separated)</label>
+              <input type="text" x-model="form.membersText" placeholder="fetcher, writer, judge"
+                     style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .65rem;color:var(--text);font-size:.82rem;font-family:monospace;outline:none">
+            </div>
+            <div style="display:flex;gap:.5rem;align-items:center">
+              <button class="btn btn-primary" style="font-size:.78rem"
+                      @click="createTeam()" :disabled="!form.slug || !form.name || !form.membersText || busy">Create</button>
+              <button class="btn btn-ghost" style="font-size:.78rem"
+                      @click="createOpen = false; createError = ''">Cancel</button>
+              <span x-show="createError" style="font-size:.75rem;color:var(--red)" x-text="createError"></span>
+            </div>
           </div>
+
+          <!-- team list -->
+          <div x-show="loading" style="color:var(--muted);font-size:.78rem">Loading…</div>
+          <template x-if="!loading && teams.length === 0">
+            <div class="card">
+              <p style="color:var(--muted)">No teams yet. Create one above.</p>
+            </div>
+          </template>
+
+          <template x-for="t in teams" :key="t.slug">
+            <div class="card" style="padding:.85rem 1.1rem">
+              <!-- team header -->
+              <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem">
+                <div style="width:8px;height:8px;border-radius:50%;flex-shrink:0"
+                     :style="{background: t.manager_status === 'running' ? 'var(--green)' : 'var(--muted)'}"></div>
+                <div style="flex:1;min-width:0">
+                  <span style="font-size:.9rem;font-weight:600" x-text="t.name || t.slug"></span>
+                  <span style="font-size:.72rem;color:var(--muted);margin-left:.4rem" x-text="t.slug"></span>
+                </div>
+                <div style="display:flex;gap:.35rem;flex-shrink:0;align-items:center">
+                  <span style="font-size:.7rem;padding:.15rem .5rem;border-radius:20px;border:1px solid"
+                        :style="t.manager_status === 'running'
+                          ? 'color:var(--green);border-color:var(--green)'
+                          : 'color:var(--muted);border-color:var(--border)'"
+                        x-text="t.manager_status === 'running' ? 'running' : t.manager_status || 'not spawned'"></span>
+                  <a x-show="t.manager_status === 'running' && t.manager_chat_port"
+                     :href="'http://localhost:' + t.manager_chat_port"
+                     target="_blank"
+                     class="btn btn-ghost" style="font-size:.72rem;text-decoration:none">Manager ↗</a>
+                  <button x-show="t.manager_status !== 'running'" class="btn btn-primary" style="font-size:.72rem"
+                          @click="spawnTeam(t.slug)" :disabled="busy">Spawn</button>
+                  <button x-show="t.manager_status === 'running'" class="btn btn-ghost" style="font-size:.72rem"
+                          @click="stopTeam(t.slug)" :disabled="busy">Stop</button>
+                  <button class="btn btn-ghost"
+                          style="font-size:.72rem;color:var(--red);border-color:var(--red)"
+                          @click="deleteTeam(t.slug)" :disabled="busy">Delete</button>
+                </div>
+              </div>
+              <!-- members -->
+              <div style="display:flex;flex-wrap:wrap;gap:.35rem;padding-left:1.2rem">
+                <template x-for="m in t.members" :key="m.slug">
+                  <div style="display:flex;align-items:center;gap:.3rem;font-size:.72rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.2rem .55rem">
+                    <span style="width:6px;height:6px;border-radius:50%;flex-shrink:0"
+                          :style="{background: m.status === 'running' ? 'var(--green)' : 'var(--muted)'}"></span>
+                    <span x-text="m.slug.replace(t.slug + '-', '')"></span>
+                    <a x-show="m.status === 'running' && m.chat_port"
+                       :href="'http://localhost:' + m.chat_port"
+                       target="_blank"
+                       style="color:var(--accent);font-size:.65rem;text-decoration:none">↗</a>
+                  </div>
+                </template>
+                <span x-show="t.members.length === 0" style="font-size:.72rem;color:var(--muted)">No members spawned yet</span>
+              </div>
+            </div>
+          </template>
         </div>
 
         <!-- ── ARENA ───────────────────────────────────────────────── -->
@@ -2064,6 +2159,90 @@
   }
 
   // ── Agents section ─────────────────────────────────────────────────────────
+  function teamsSection() {
+    return {
+      teams:       [],
+      loading:     false,
+      busy:        false,
+      createOpen:  false,
+      createError: '',
+      form: { slug: '', name: '', manager_model: 'qwen3:1.7b', member_model: 'qwen3:1.7b', membersText: '' },
+
+      async init() {
+        await this.fetchTeams();
+        setInterval(() => this.fetchTeams(), 15000);
+      },
+
+      async fetchTeams() {
+        this.loading = true;
+        try {
+          const r = await fetch('/api/factory/teams');
+          if (r.ok) { const d = await r.json(); this.teams = d.teams || []; }
+        } catch {}
+        this.loading = false;
+      },
+
+      async createTeam() {
+        const members = this.form.membersText.split(',').map(s => s.trim()).filter(Boolean);
+        if (!members.length) { this.createError = 'Add at least one member role'; return; }
+        this.busy = true; this.createError = '';
+        try {
+          const r = await fetch('/api/factory/teams', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              slug:           this.form.slug,
+              name:           this.form.name,
+              members:        members,
+              manager_model:  this.form.manager_model,
+              member_model:   this.form.member_model,
+            }),
+          });
+          if (r.ok) {
+            this.createOpen = false;
+            this.form = { slug: '', name: '', manager_model: 'qwen3:1.7b', member_model: 'qwen3:1.7b', membersText: '' };
+            await this.fetchTeams();
+          } else {
+            const d = await r.json().catch(() => ({}));
+            this.createError = d.detail || ('Error ' + r.status);
+          }
+        } catch (e) { this.createError = e.message; }
+        this.busy = false;
+      },
+
+      async spawnTeam(slug) {
+        this.busy = true;
+        try {
+          const r = await fetch(`/api/factory/teams/${slug}/spawn`, { method: 'POST' });
+          if (r.ok) await this.fetchTeams();
+          else {
+            const d = await r.json().catch(() => ({}));
+            alert(d.detail || 'Spawn failed');
+          }
+        } catch {}
+        this.busy = false;
+      },
+
+      async stopTeam(slug) {
+        this.busy = true;
+        try {
+          const r = await fetch(`/api/factory/teams/${slug}/stop`, { method: 'POST' });
+          if (r.ok) await this.fetchTeams();
+        } catch {}
+        this.busy = false;
+      },
+
+      async deleteTeam(slug) {
+        if (!confirm(`Delete team "${slug}"? Containers will be removed (workspace stays).`)) return;
+        this.busy = true;
+        try {
+          const r = await fetch(`/api/factory/teams/${slug}`, { method: 'DELETE' });
+          if (r.ok) this.teams = this.teams.filter(t => t.slug !== slug);
+        } catch {}
+        this.busy = false;
+      },
+    }
+  }
+
   function agentsSection() {
     return {
       agents: [],
