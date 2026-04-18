@@ -4,4 +4,6 @@
 !USER.md
 !memory/MEMORY.md
 !.gitignore
-!workspaces/
+!config.json
+config.json
+cron/
