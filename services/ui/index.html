@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Agent Factory</title>
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <style>
     [x-cloak] { display: none !important; }
@@ -295,27 +294,8 @@
     .msg {
       max-width: 96%; padding: .45rem .7rem;
       border-radius: 8px; font-size: .8rem; line-height: 1.55;
-      word-break: break-word;
+      word-break: break-word; white-space: pre-wrap;
     }
-    /* markdown prose — scoped to .msg and .md-prose */
-    .msg p, .md-prose p { margin: 0 0 .4rem; }
-    .msg p:last-child, .md-prose p:last-child { margin-bottom: 0; }
-    .msg h1,.msg h2,.msg h3,.msg h4,
-    .md-prose h1,.md-prose h2,.md-prose h3,.md-prose h4 { font-weight:600; margin:.55rem 0 .2rem; line-height:1.3; }
-    .msg h1,.md-prose h1 { font-size:1.05em; }
-    .msg h2,.md-prose h2 { font-size:.97em; }
-    .msg h3,.md-prose h3 { font-size:.9em; }
-    .msg ul,.msg ol,.md-prose ul,.md-prose ol { padding-left:1.25rem; margin:.25rem 0; }
-    .msg li,.md-prose li { margin-bottom:.1rem; }
-    .msg code,.md-prose code { font-family:monospace; background:var(--bg); padding:.1rem .3rem; border-radius:3px; font-size:.85em; }
-    .msg pre,.md-prose pre { background:var(--bg); border:1px solid var(--border); border-radius:5px; padding:.5rem .7rem; overflow-x:auto; margin:.35rem 0; }
-    .msg pre code,.md-prose pre code { background:none; padding:0; }
-    .msg table,.md-prose table { border-collapse:collapse; width:100%; margin:.35rem 0; font-size:.85em; }
-    .msg th,.msg td,.md-prose th,.md-prose td { border:1px solid var(--border); padding:.22rem .5rem; }
-    .msg th,.md-prose th { background:var(--surface2); font-weight:600; }
-    .msg blockquote,.md-prose blockquote { border-left:3px solid var(--accent); margin:.3rem 0; padding:.15rem .6rem; color:var(--muted2); }
-    .msg a,.md-prose a { color:var(--accent2); }
-    .msg hr,.md-prose hr { border:none; border-top:1px solid var(--border); margin:.45rem 0; }
     .msg.user {
       align-self: flex-end;
       background: var(--accent-dim); border: 1px solid var(--accent-border);
@@ -1243,9 +1223,9 @@
         </div>
 
         <!-- ── SANDBOX (per-workspace chat tab) ──────────────────── -->
-        <div x-show="$store.f.activeTab?.type === 'sandbox'"
+        <div :style="{display: $store.f.activeTab?.type === 'sandbox' ? 'flex' : 'none'}"
              x-data="sandboxTab()"
-             style="position:relative;display:flex;flex-direction:column;height:calc(100vh - var(--tabbar-h) - var(--statusbar-h));overflow:hidden">
+             style="position:relative;flex-direction:column;height:calc(100vh - var(--tabbar-h) - var(--statusbar-h));overflow:hidden">
 
           <!-- model picker overlay -->
           <div x-show="modelOpen" x-cloak
@@ -1297,7 +1277,7 @@
                     @click="load()" :disabled="status === 'loading' || !model">\u21ba Reload</button>
           </div>
           <!-- messages -->
-          <div style="flex:1;overflow-y:auto;padding:.75rem 1rem;display:flex;flex-direction:column;gap:.4rem;scrollbar-width:thin;scrollbar-color:var(--border) transparent"
+          <div style="flex:1;min-height:0;overflow-y:auto;padding:.75rem 1rem;display:flex;flex-direction:column;gap:.4rem;scrollbar-width:thin;scrollbar-color:var(--border) transparent"
                x-ref="msgs">
             <template x-if="status === 'loading'">
               <p style="color:var(--muted);font-size:.8rem;text-align:center;padding:2rem 0">
@@ -1316,12 +1296,11 @@
               </p>
             </template>
             <template x-for="(m, i) in messages" :key="i">
-              <div class="md-prose"
-                   style="max-width:80%;padding:.45rem .75rem;border-radius:8px;font-size:.82rem;line-height:1.55;word-break:break-word"
+              <div style="max-width:80%;padding:.45rem .75rem;border-radius:8px;font-size:.82rem;line-height:1.55;word-break:break-word"
                    :style="m.role === 'user'
-                     ? 'align-self:flex-end;background:var(--accent-dim);border:1px solid var(--accent-border)'
+                     ? 'align-self:flex-end;background:var(--accent-dim);border:1px solid var(--accent-border);white-space:pre-wrap'
                      : 'align-self:flex-start;background:var(--surface);border:1px solid var(--border)'"
-                   x-html="m.streaming && !m.content ? 'Thinking…' : $md(m.content)">
+                   x-html="m.role === 'user' ? escHtml(m.content) : renderMd(m.content)">
               </div>
             </template>
           </div>
@@ -1450,31 +1429,13 @@
               </div>
               <div style="display:flex;flex-direction:column;gap:.25rem">
                 <label style="font-size:.7rem;color:var(--muted)">Manager model</label>
-                <select x-model="form.manager_model"
-                        style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .65rem;color:var(--text);font-size:.78rem;font-family:monospace;outline:none">
-                  <template x-for="p in providers" :key="p.name">
-                    <template x-for="m in p.models" :key="p.name + '|' + m.name">
-                      <option :value="m.name" x-text="m.name"></option>
-                    </template>
-                  </template>
-                  <template x-if="!providers.length">
-                    <option value="" disabled>Loading models…</option>
-                  </template>
-                </select>
+                <input type="text" x-model="form.manager_model" placeholder="qwen3:1.7b"
+                       style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .65rem;color:var(--text);font-size:.82rem;font-family:monospace;outline:none">
               </div>
               <div style="display:flex;flex-direction:column;gap:.25rem">
                 <label style="font-size:.7rem;color:var(--muted)">Member model</label>
-                <select x-model="form.member_model"
-                        style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .65rem;color:var(--text);font-size:.78rem;font-family:monospace;outline:none">
-                  <template x-for="p in providers" :key="p.name">
-                    <template x-for="m in p.models" :key="p.name + '|' + m.name">
-                      <option :value="m.name" x-text="m.name"></option>
-                    </template>
-                  </template>
-                  <template x-if="!providers.length">
-                    <option value="" disabled>Loading models…</option>
-                  </template>
-                </select>
+                <input type="text" x-model="form.member_model" placeholder="qwen3:1.7b"
+                       style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .65rem;color:var(--text);font-size:.82rem;font-family:monospace;outline:none">
               </div>
             </div>
             <div style="display:flex;flex-direction:column;gap:.25rem;margin-bottom:.75rem">
@@ -1731,31 +1692,13 @@
               </div>
               <div style="display:flex;flex-direction:column;gap:.25rem">
                 <label style="font-size:.7rem;color:var(--muted)">Agent model</label>
-                <select x-model="runForm.model"
-                        style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.3rem .65rem;color:var(--text);font-size:.75rem;font-family:monospace;outline:none">
-                  <template x-for="p in providers" :key="p.name">
-                    <template x-for="m in p.models" :key="p.name + '|' + m.name">
-                      <option :value="m.name" x-text="m.name"></option>
-                    </template>
-                  </template>
-                  <template x-if="!providers.length">
-                    <option value="" disabled>Loading models…</option>
-                  </template>
-                </select>
+                <input type="text" x-model="runForm.model" placeholder="qwen3:1.7b"
+                       style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.3rem .65rem;color:var(--text);font-size:.75rem;font-family:monospace;outline:none">
               </div>
               <div style="display:flex;flex-direction:column;gap:.25rem">
                 <label style="font-size:.7rem;color:var(--muted)">Judge model</label>
-                <select x-model="runForm.judge_model"
-                        style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.3rem .65rem;color:var(--text);font-size:.75rem;font-family:monospace;outline:none">
-                  <template x-for="p in providers" :key="p.name">
-                    <template x-for="m in p.models" :key="p.name + '|' + m.name">
-                      <option :value="m.name" x-text="m.name"></option>
-                    </template>
-                  </template>
-                  <template x-if="!providers.length">
-                    <option value="" disabled>Loading models…</option>
-                  </template>
-                </select>
+                <input type="text" x-model="runForm.judge_model" placeholder="qwen3:1.7b"
+                       style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.3rem .65rem;color:var(--text);font-size:.75rem;font-family:monospace;outline:none">
               </div>
               <div style="display:flex;flex-direction:column;gap:.25rem">
                 <label style="font-size:.7rem;color:var(--muted)">Version tag (optional)</label>
@@ -2075,7 +2018,7 @@
           </template>
           <template x-for="(m, i) in messages" :key="i">
             <div class="msg" :class="[m.role, m.streaming ? 'thinking' : '', m.streaming ? 'cursor' : '']"
-                 x-html="m.streaming && !m.content ? 'Thinking…' : $md(m.content)">
+                 x-text="m.content || (m.streaming ? 'Thinking…' : '')">
             </div>
           </template>
         </div>
@@ -2143,6 +2086,32 @@
 </div><!-- /shell -->
 
 <script>
+  // ── Markdown / HTML utilities ─────────────────────────────────────────────
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  }
+
+  function renderMd(raw) {
+    const parts = raw.split(/(```[\s\S]*?```)/g);
+    return parts.map((p, i) => {
+      if (i % 2 === 1) {
+        const m = p.match(/```(\w*)\n?([\s\S]*)```/);
+        if (m) { const code = m[2].replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); return `<pre><code>${code}</code></pre>`; }
+        return `<pre>${p.replace(/```/g,'')}</pre>`;
+      }
+      let h = p.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      h = h.replace(/`([^`\n]+)`/g,'<code>$1</code>');
+      h = h.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+      h = h.replace(/\*([^*]+)\*/g,'<em>$1</em>');
+      h = h.replace(/^### (.+)$/gm,'<h3 style="font-size:.95rem;margin:.4em 0 .2em">$1</h3>');
+      h = h.replace(/^## (.+)$/gm,'<h2 style="font-size:1.05rem;margin:.5em 0 .2em">$1</h2>');
+      h = h.replace(/^# (.+)$/gm,'<h2 style="font-size:1.1rem;margin:.5em 0 .2em">$1</h2>');
+      h = h.replace(/^[-*]\s+(.+)$/gm,'<li>$1</li>');
+      h = h.replace(/(<li>[\s\S]*?<\/li>)/g, s => `<ul style="margin:.3em 0 .3em 1.2em;padding:0">${s}</ul>`);
+      h = h.replace(/\n/g,'<br>'); return h;
+    }).join('');
+  }
+
   const SECTION_LABELS = {
     overview:  'Overview',
     artoffice: 'Art Office',
@@ -2156,8 +2125,6 @@
   }
 
   document.addEventListener('alpine:init', () => {
-
-    Alpine.magic('md', () => text => marked.parse(text || '', { breaks: true, gfm: true }))
 
     Alpine.store('f', {
       // ── Tabs ──────────────────────────────────────────────────
@@ -2596,25 +2563,11 @@
       busy:        false,
       createOpen:  false,
       createError: '',
-      providers:   [],
-      form: { slug: '', name: '', manager_model: '', member_model: '', membersText: '' },
+      form: { slug: '', name: '', manager_model: 'qwen3:1.7b', member_model: 'qwen3:1.7b', membersText: '' },
 
       async init() {
-        await Promise.all([this.fetchTeams(), this.loadModels()]);
+        await this.fetchTeams();
         setInterval(() => this.fetchTeams(), 15000);
-      },
-
-      async loadModels() {
-        try {
-          const r = await fetch('/api/models');
-          if (r.ok) {
-            const d = await r.json();
-            this.providers = d.providers || [];
-            const cur = d.current || (this.providers.flatMap(p => p.models)[0]?.name || '');
-            if (!this.form.manager_model) this.form.manager_model = cur;
-            if (!this.form.member_model)  this.form.member_model  = cur;
-          }
-        } catch {}
       },
 
       async fetchTeams() {
@@ -2700,8 +2653,7 @@
       setError:     '',
       runs:         [],
       runDetail:    null,
-      providers:    [],
-      runForm:      { task_set_name: '', model: '', judge_model: '', version_tag: '' },
+      runForm:      { task_set_name: '', model: 'qwen3:1.7b', judge_model: 'qwen3:1.7b', version_tag: '' },
       runError:     '',
       running:      false,
       lastRunScore: null,
@@ -2710,20 +2662,7 @@
       async init() {
         const r = await fetch('/api/factory/workspaces').catch(() => null);
         if (r?.ok) { const d = await r.json(); this.workspaces = d.workspaces || []; }
-        await Promise.all([this.fetchRuns(), this.loadModels()]);
-      },
-
-      async loadModels() {
-        try {
-          const r = await fetch('/api/models');
-          if (r.ok) {
-            const d = await r.json();
-            this.providers = d.providers || [];
-            const cur = d.current || (this.providers.flatMap(p => p.models)[0]?.name || '');
-            if (!this.runForm.model)       this.runForm.model       = cur;
-            if (!this.runForm.judge_model) this.runForm.judge_model = cur;
-          }
-        } catch {}
+        await this.fetchRuns();
       },
 
       async onWsChange() {
