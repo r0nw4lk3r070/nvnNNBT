@@ -6,6 +6,7 @@ workspace/memory/HISTORY.md.bak
 workspace/sessions/
 workspace/.gitignore
 workspace/memory/lab_state.json
+workspace/memory/chats/
 data/workspaces/*/memory/history.jsonl
 data/workspaces/*/sessions/
 data/workspaces/*/knowledge/vectors.db
