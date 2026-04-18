@@ -397,6 +397,72 @@
       vertical-align: middle;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── TEAMS / ARENA SHARED ───────────────────────────────── */
+    .card-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: .85rem; gap: .5rem;
+    }
+    .card-head span                 { font-size: .83rem; font-weight: 600; }
+    .btn-sm {
+      padding: .2rem .6rem; font-size: .73rem;
+      border-radius: 5px; border: 1px solid var(--border);
+      background: var(--surface2); color: var(--muted2);
+      cursor: pointer; font-family: inherit; transition: background .1s;
+    }
+    .btn-sm:hover:not(:disabled)    { background: var(--bg); color: var(--text); }
+    .btn-sm:disabled                { opacity: .4; cursor: not-allowed; }
+    .btn-ok                         { border-color: var(--green); color: var(--green); }
+    .btn-ok:hover:not(:disabled)    { background: var(--green); color: #000; }
+    .btn-warn                       { border-color: var(--red); color: var(--red); }
+    .btn-warn:hover:not(:disabled)  { background: var(--red); color: #fff; }
+
+    .badge {
+      display: inline-block; font-size: .65rem; font-weight: 600;
+      padding: .08rem .45rem; border-radius: 20px;
+      border: 1px solid var(--border); margin-left: .3rem;
+      vertical-align: middle;
+    }
+    .badge-prod                     { color: var(--green); border-color: var(--green); }
+    .badge-test                     { color: var(--yellow); border-color: var(--yellow); }
+
+    .agent-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .5rem .6rem; border-radius: 7px; gap: .5rem;
+      border: 1px solid transparent;
+      transition: background .1s, border-color .1s;
+    }
+    .agent-row:hover                { background: var(--surface2); }
+    .agent-row.selected             { background: var(--surface2); border-color: var(--accent); }
+    .agent-info                     { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+    .agent-name                     { font-size: .82rem; font-weight: 600; }
+    .agent-slug                     { font-size: .73rem; color: var(--muted); }
+    .agent-actions                  { display: flex; gap: .3rem; flex-shrink: 0; }
+
+    .member-dots                    { display: flex; gap: 4px; align-items: center; }
+    .member-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--muted); flex-shrink: 0;
+    }
+    .member-dot.running             { background: var(--green); box-shadow: 0 0 4px var(--green); }
+    .member-dot.stopped             { background: var(--muted); }
+
+    /* delegation log */
+    .log-trace {
+      display: flex; flex-direction: column; gap: 2px;
+      max-height: 320px; overflow-y: auto;
+      font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
+      font-size: .73rem;
+    }
+    .log-entry {
+      display: grid; grid-template-columns: 7rem 7rem 1fr 9rem;
+      gap: .4rem; padding: .2rem .3rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .log-agent                      { color: var(--accent); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .log-action                     { color: var(--muted2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .log-detail                     { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .log-time                       { color: var(--muted); text-align: right; font-size: .68rem; }
   </style>
 </head>
 
@@ -1443,18 +1509,72 @@
         </div>
 
         <!-- ── ARENA ───────────────────────────────────────────────── -->
-        <div class="section" x-show="$store.f.activeTab?.type === 'arena'">
+        <div class="section" x-show="$store.f.activeTab?.type === 'arena'"
+             x-data="arenaSection()">
           <div class="sec-head">
             <div class="sec-title">Arena</div>
-            <div class="sec-sub">Run multi-agent sessions. Observe turn by turn. Replay any past session.</div>
+            <div class="sec-sub">Test teams before going live. Spawn in test mode, observe delegation, promote when ready.</div>
           </div>
+
+          <!-- Team list -->
           <div class="card">
-            <h3>Session runner <span class="phase">Phase 3</span></h3>
-            <p>Pick a mode: <strong>Direct</strong> (two agents debate or collaborate), <strong>Orchestrated</strong> (one agent leads, delegates), or <strong>Swarm</strong> (any agent hands off to any other mid-turn). Set a goal, start, observe.</p>
+            <div class="card-head">
+              <span>Teams</span>
+              <button class="btn btn-sm" @click="fetchTeams()" :disabled="loading">↻ Refresh</button>
+            </div>
+            <div x-show="loading" class="muted">Loading…</div>
+            <div x-show="!loading && teams.length === 0" class="muted">No teams yet — create one in the Teams section.</div>
+            <template x-for="t in teams" :key="t.slug">
+              <div class="agent-row" :class="{ selected: selected?.slug === t.slug }"
+                   @click="selectTeam(t)" style="cursor:pointer">
+                <div class="agent-info">
+                  <span class="agent-name" x-text="t.name"></span>
+                  <span class="agent-slug" x-text="t.slug"></span>
+                  <span class="badge" :class="t.mode === 'test' ? 'badge-test' : 'badge-prod'"
+                        x-text="t.mode || 'production'"></span>
+                </div>
+                <div class="agent-actions">
+                  <template x-if="t.manager_status !== 'running'">
+                    <div style="display:flex;gap:4px">
+                      <button class="btn btn-sm" :disabled="busy"
+                              @click.stop="spawnTest(t.slug)">Spawn test</button>
+                      <button class="btn btn-sm" :disabled="busy"
+                              @click.stop="spawnProd(t.slug)">Spawn</button>
+                    </div>
+                  </template>
+                  <template x-if="t.manager_status === 'running'">
+                    <div style="display:flex;gap:4px">
+                      <a x-show="t.manager_chat_port"
+                         :href="'http://localhost:' + t.manager_chat_port"
+                         target="_blank" class="btn btn-sm">Manager ↗</a>
+                      <button x-show="t.mode === 'test'" class="btn btn-sm btn-ok" :disabled="busy"
+                              @click.stop="promote(t.slug)">→ Production</button>
+                      <button class="btn btn-sm btn-warn" :disabled="busy"
+                              @click.stop="stopTeam(t.slug)">Stop</button>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
           </div>
-          <div class="card">
-            <h3>Replay <span class="phase">Phase 3</span></h3>
-            <p>Every session turn is stored. Load any past arena session and step through it turn by turn.</p>
+
+          <!-- Delegation log -->
+          <div class="card" x-show="selected">
+            <div class="card-head">
+              <span>Delegation log — <strong x-text="selected?.name"></strong></span>
+              <button class="btn btn-sm" @click="fetchLog()">↻</button>
+            </div>
+            <div x-show="logEntries.length === 0" class="muted">No log entries yet. Send a message to the manager to start.</div>
+            <div class="log-trace" x-show="logEntries.length > 0">
+              <template x-for="e in logEntries" :key="e.id">
+                <div class="log-entry">
+                  <span class="log-agent" x-text="e.agent"></span>
+                  <span class="log-action" x-text="e.action"></span>
+                  <span class="log-detail" x-text="e.detail"></span>
+                  <span class="log-time" x-text="e.created_at"></span>
+                </div>
+              </template>
+            </div>
           </div>
         </div>
 
@@ -2158,7 +2278,95 @@
     }
   }
 
-  // ── Agents section ─────────────────────────────────────────────────────────
+  // ── Arena section ──────────────────────────────────────────────────────────
+  function arenaSection() {
+    return {
+      teams:      [],
+      loading:    false,
+      busy:       false,
+      selected:   null,
+      logEntries: [],
+      _logTimer:  null,
+
+      async init() {
+        await this.fetchTeams();
+      },
+
+      async fetchTeams() {
+        this.loading = true;
+        try {
+          const r = await fetch('/api/factory/teams');
+          if (r.ok) { const d = await r.json(); this.teams = d.teams || []; }
+        } catch {}
+        this.loading = false;
+      },
+
+      selectTeam(t) {
+        this.selected = t;
+        this.logEntries = [];
+        this.fetchLog();
+        if (this._logTimer) clearInterval(this._logTimer);
+        this._logTimer = setInterval(() => this.fetchLog(), 5000);
+      },
+
+      async fetchLog() {
+        if (!this.selected) return;
+        try {
+          const r = await fetch(`/api/factory/teams/${this.selected.slug}/log`);
+          if (r.ok) { const d = await r.json(); this.logEntries = d.entries || []; }
+        } catch {}
+      },
+
+      async spawnTest(slug) {
+        this.busy = true;
+        try {
+          const r = await fetch(`/api/factory/teams/${slug}/spawn`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'test' }),
+          });
+          if (r.ok) { await this.fetchTeams(); if (this.selected?.slug === slug) await this.fetchLog(); }
+          else { const d = await r.json().catch(() => ({})); alert(d.detail || 'Spawn failed'); }
+        } catch {}
+        this.busy = false;
+      },
+
+      async spawnProd(slug) {
+        this.busy = true;
+        try {
+          const r = await fetch(`/api/factory/teams/${slug}/spawn`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'production' }),
+          });
+          if (r.ok) await this.fetchTeams();
+          else { const d = await r.json().catch(() => ({})); alert(d.detail || 'Spawn failed'); }
+        } catch {}
+        this.busy = false;
+      },
+
+      async promote(slug) {
+        this.busy = true;
+        try {
+          const r = await fetch(`/api/factory/teams/${slug}/mode`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'production' }),
+          });
+          if (r.ok) await this.fetchTeams();
+        } catch {}
+        this.busy = false;
+      },
+
+      async stopTeam(slug) {
+        this.busy = true;
+        try {
+          const r = await fetch(`/api/factory/teams/${slug}/stop`, { method: 'POST' });
+          if (r.ok) { await this.fetchTeams(); if (this.selected?.slug === slug) this.selected = null; }
+        } catch {}
+        this.busy = false;
+      },
+    }
+  }
+
+  // ── Teams section ──────────────────────────────────────────────────────────
   function teamsSection() {
     return {
       teams:       [],
