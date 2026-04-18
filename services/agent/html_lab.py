@@ -32,7 +32,7 @@ def _build_lab_html() -> str:
   .status-bar {{ font-size: .75rem; padding: 6px 12px; border-top: 1px solid var(--border); background: var(--surface); color: var(--muted); flex-shrink: 0; display: flex; align-items: center; gap: 6px; }}
   .status-dot {{ width: 7px; height: 7px; border-radius: 50%; background: var(--border); flex-shrink: 0; }}
   .status-dot.active {{ background: var(--ok); }}
-  .chat-area {{ flex: 1; display: flex; flex-direction: column; overflow: hidden; }}
+  .chat-area {{ flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }}
   .empty-state {{ flex: 1; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: .9rem; }}
   .sidebar-toggle {{ background: none; border: none; color: var(--text); font-size: 1.3rem; cursor: pointer; padding: 2px 8px; margin-right: 4px; }}
   .backdrop {{ position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 199; display: none; }}
@@ -187,7 +187,8 @@ function renderMd(raw) {{
     h = h.replace(/^### (.+)$/gm,'<h3 style="font-size:.95rem;margin:.4em 0 .2em">$1</h3>');
     h = h.replace(/^## (.+)$/gm,'<h2 style="font-size:1.05rem;margin:.5em 0 .2em">$1</h2>');
     h = h.replace(/^# (.+)$/gm,'<h2 style="font-size:1.1rem;margin:.5em 0 .2em">$1</h2>');
-    h = h.replace(/^-\\s+(.+)$/gm,'\u2022\u00a0$1');
+    h = h.replace(/^[-*]\\s+(.+)$/gm,'<li>$1</li>');
+    h = h.replace(/(<li>.*<\\/li>)/gs, s => `<ul style="margin:.3em 0 .3em 1.2em;padding:0">${{s}}</ul>`);
     h = h.replace(/\\n/g,'<br>'); return h;
   }}).join('');
 }}
@@ -300,13 +301,11 @@ async function send() {{
         if(!line.startsWith('data: '))continue; const raw=line.slice(6).trim(); if(raw==='[DONE]')break;
         try{{
           const d=JSON.parse(raw).choices?.[0]?.delta?.content||'';
-          if(d){{if(thinking.parentNode)thinking.replaceWith(el); buf+=d; el.textContent=buf; $('messages').scrollTop=99999;}}
+          if(d){{if(thinking.parentNode)thinking.replaceWith(el); buf+=d; el.innerHTML=renderMd(buf); $('messages').scrollTop=99999;}}
         }}catch{{}}
       }}
     }}
   }}catch(e){{if(thinking.parentNode)thinking.remove(); el.textContent=`[error: ${{e.message}}]`;}}
-  if(thinking.parentNode)thinking.remove();
-  if(!el.parentNode)$('messages').appendChild(el);
   if(thinking.parentNode)thinking.remove();
   if(!el.parentNode)$('messages').appendChild(el);
   el.classList.remove('streaming');
