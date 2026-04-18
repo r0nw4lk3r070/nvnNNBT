@@ -295,11 +295,12 @@ async def handle_models(_: web.Request) -> web.Response:
                     ) as r:
                         data = await r.json()
                 items = data.get("data") or data.get("models", [])
+                cloud_provider = "cloud" in pname.lower()
                 fetched = [
                     {"name": m.get("id") or m.get("name"), "source": pname}
                     for m in items
                     if (m.get("id") or m.get("name"))
-                    and not (m.get("id") or m.get("name") or "").endswith(":cloud")
+                    and ((m.get("id") or m.get("name") or "").endswith(":cloud")) == cloud_provider
                 ]
             except Exception as e:
                 logger.warning("provider '{}' model fetch failed: {}", pname, e)
