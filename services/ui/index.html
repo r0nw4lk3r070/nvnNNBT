@@ -1311,16 +1311,27 @@
                    x-model="draft"
                    placeholder="Message sandbox\u2026"
                    :disabled="status !== 'loaded' || streaming"
-                   @keydown.enter="send()"
+                   @keydown.enter="!streaming && send()"
                    @focus="$el.style.borderColor='var(--accent)'"
                    @blur="$el.style.borderColor='var(--border)'">
-            <button class="btn btn-primary"
-                    @click="send()"
-                    :disabled="status !== 'loaded' || streaming || !draft.trim()">
-              <svg viewBox="0 0 20 20" fill="currentColor" style="width:13px;height:13px;flex-shrink:0">
-                <path d="M2.5 10 17.5 2.5 11.5 10 17.5 17.5z"/>
-              </svg>
-            </button>
+            <template x-if="!streaming">
+              <button class="btn btn-primary"
+                      @click="send()"
+                      :disabled="status !== 'loaded' || !draft.trim()"
+                      style="flex-shrink:0">
+                <svg viewBox="0 0 20 20" fill="currentColor" style="width:13px;height:13px">
+                  <path d="M2.5 10 17.5 2.5 11.5 10 17.5 17.5z"/>
+                </svg>
+              </button>
+            </template>
+            <template x-if="streaming">
+              <button class="btn" @click="stop()"
+                      style="flex-shrink:0;background:var(--red);border-color:var(--red);color:#fff;padding:0 10px">
+                <svg viewBox="0 0 20 20" fill="currentColor" style="width:11px;height:11px">
+                  <rect x="4" y="4" width="12" height="12" rx="2"/>
+                </svg>
+              </button>
+            </template>
           </div>
         </div>
 
@@ -2028,15 +2039,24 @@
             <textarea class="rp-textarea" x-ref="input"
               x-model="draft" rows="1"
               placeholder="Message Art…"
-              @keydown.enter.prevent="$event.shiftKey ? draft += '\n' : send()"
+              @keydown.enter.prevent="$event.shiftKey ? draft += '\n' : (!streaming && send())"
               @input="autosize($refs.input)"
               :disabled="streaming">
             </textarea>
-            <button class="rp-send" @click="send()" :disabled="!draft.trim() || streaming">
-              <svg viewBox="0 0 20 20" fill="currentColor">
-                <path d="M2 10l16-8-6 8 6 8z"/>
-              </svg>
-            </button>
+            <template x-if="!streaming">
+              <button class="rp-send" @click="send()" :disabled="!draft.trim()">
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M2 10l16-8-6 8 6 8z"/>
+                </svg>
+              </button>
+            </template>
+            <template x-if="streaming">
+              <button class="rp-send" @click="stop()" style="background:var(--red);border-color:var(--red)">
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                  <rect x="5" y="5" width="10" height="10" rx="2"/>
+                </svg>
+              </button>
+            </template>
           </div>
         </div>
       </aside>
@@ -3058,6 +3078,10 @@
         this.$nextTick(() => { const el = this.$refs.msgs; if (el) el.scrollTop = el.scrollHeight; });
       },
 
+      stop() {
+        if (this._abort) { this._abort.abort(); this._abort = null; }
+      },
+
       async send() {
         const text = this.draft.trim();
         if (!text || this.streaming || this.status !== 'loaded') return;
@@ -3066,11 +3090,13 @@
         this.messages.push({ role: 'user', content: text });
         this.messages.push({ role: 'assistant', content: '', streaming: true });
         this.streaming = true;
+        this._abort = new AbortController();
         this.scrollBottom();
         try {
           const r = await fetch('/api/factory/sandbox/chat', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ messages: [...this._history] }),
+            signal: this._abort.signal,
           });
           if (!r.ok || !r.body) {
             this.messages[this.messages.length - 1].content = 'Error (' + r.status + ')';
@@ -3102,10 +3128,12 @@
           }
           this._history.push({ role: 'assistant', content: this.messages[this.messages.length - 1].content });
         } catch (e) {
-          this.messages[this.messages.length - 1].content = 'Network error: ' + e.message;
+          if (e.name !== 'AbortError')
+            this.messages[this.messages.length - 1].content = 'Network error: ' + e.message;
         } finally {
           this.messages[this.messages.length - 1].streaming = false;
           this.streaming = false;
+          this._abort = null;
           this.scrollBottom();
         }
       },
@@ -3449,6 +3477,10 @@
         })
       },
 
+      stop() {
+        if (this._abort) { this._abort.abort(); this._abort = null; }
+      },
+
       async send() {
         const text = this.draft.trim()
         if (!text || this.streaming) return
@@ -3463,6 +3495,7 @@
         const asst = { role: 'assistant', content: '', streaming: true }
         this.messages.push(asst)
         this.streaming = true
+        this._abort = new AbortController()
         this.scrollBottom()
 
         try {
@@ -3470,6 +3503,7 @@
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({ messages: this.messages.slice(0, -1) }),
+            signal:  this._abort.signal,
           })
           if (!r.ok || !r.body) {
             this.messages[this.messages.length - 1].content = 'Connection error (' + r.status + ').'
@@ -3505,10 +3539,12 @@
             }
           }
         } catch (e) {
-          this.messages[this.messages.length - 1].content = 'Network error: ' + e.message
+          if (e.name !== 'AbortError')
+            this.messages[this.messages.length - 1].content = 'Network error: ' + e.message
         } finally {
           this.messages[this.messages.length - 1].streaming = false
           this.streaming = false
+          this._abort = null
           this.scrollBottom()
           this.autoSave()
           this.$nextTick(() => this.$refs.input?.focus())
