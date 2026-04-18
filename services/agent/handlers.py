@@ -779,3 +779,148 @@ async def handle_agent_settings_put(request: web.Request) -> web.Response:
     except Exception as e:
         return web.Response(status=500, text=str(e))
     return web.json_response({"ok": True})
+
+
+# ── Provider management ──────────────────────────────────────────────────────
+
+async def handle_providers_list(_: web.Request) -> web.Response:
+    """List all providers from config.json (API keys redacted)."""
+    cfg = state._read_config_raw()
+    raw = cfg.get("providers", {})
+    result = []
+    for name, pc in raw.items():
+        result.append({
+            "name":        name,
+            "label":       pc.get("label", name),
+            "apiBase":     pc.get("apiBase") or pc.get("api_base", ""),
+            "hasApiKey":   bool(pc.get("apiKey") or pc.get("apiKeyEnv")),
+            "apiKeyEnv":   pc.get("apiKeyEnv", ""),
+            "models":      pc.get("models", []),
+            "liveDiscover": not bool(pc.get("models")),
+        })
+    return web.json_response({"providers": result})
+
+
+async def handle_provider_upsert(request: web.Request) -> web.Response:
+    """Add or update a provider in config.json."""
+    try:
+        body = await request.json()
+    except Exception:
+        return web.Response(status=400, text="invalid JSON")
+
+    name = (body.get("name") or "").strip()
+    if not name or not re.match(r"^[a-zA-Z][a-zA-Z0-9_-]*$", name):
+        return web.Response(status=400, text="invalid provider name (must start with letter, alphanumeric + _ - only)")
+
+    cfg = state._read_config_raw()
+    if "providers" not in cfg:
+        cfg["providers"] = {}
+    existing = cfg["providers"].get(name, {})
+
+    pc: dict = {}
+    pc["label"]   = (body.get("label") or existing.get("label") or name).strip()
+    pc["apiBase"] = (body.get("apiBase") or existing.get("apiBase") or "").strip()
+
+    # API key: only overwrite if explicitly provided
+    api_key = (body.get("apiKey") or "").strip()
+    if api_key:
+        pc["apiKey"] = api_key
+    elif existing.get("apiKey"):
+        pc["apiKey"] = existing["apiKey"]
+
+    api_key_env = (body.get("apiKeyEnv") or existing.get("apiKeyEnv", "")).strip()
+    if api_key_env:
+        pc["apiKeyEnv"] = api_key_env
+
+    # Static models list: empty list = live discovery, non-empty = static
+    models = body.get("models")
+    if models is not None:
+        if isinstance(models, list):
+            pc["models"] = [str(m).strip() for m in models if str(m).strip()]
+        elif isinstance(models, str):
+            pc["models"] = [m.strip() for m in models.splitlines() if m.strip()]
+    elif existing.get("models"):
+        pc["models"] = existing["models"]
+
+    cfg["providers"][name] = pc
+    state._write_config_raw(cfg)
+    logger.info("provider '{}' saved", name)
+    return web.json_response({"ok": True, "name": name})
+
+
+async def handle_provider_delete(request: web.Request) -> web.Response:
+    """Delete a provider from config.json."""
+    name = request.match_info["name"]
+    cfg = state._read_config_raw()
+    if name not in cfg.get("providers", {}):
+        return web.Response(status=404, text="provider not found")
+    del cfg["providers"][name]
+    state._write_config_raw(cfg)
+    logger.info("provider '{}' deleted", name)
+    return web.json_response({"ok": True})
+
+
+async def handle_provider_discover(request: web.Request) -> web.Response:
+    """Live-fetch models from a provider's /v1/models endpoint.
+    Returns the model list. Does NOT save — use handle_provider_upsert to persist."""
+    import os as _os
+    name = request.match_info["name"]
+    cfg = state._read_config_raw()
+    pc = cfg.get("providers", {}).get(name)
+    if not pc:
+        return web.Response(status=404, text="provider not found")
+
+    api_base = (pc.get("apiBase") or pc.get("api_base") or "").rstrip("/")
+    key_env  = pc.get("apiKeyEnv", "")
+    api_key  = _os.environ.get(key_env, "") if key_env else (pc.get("apiKey") or "")
+
+    if not api_base:
+        return web.Response(status=400, text="provider has no apiBase configured")
+
+    try:
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        async with aiohttp.ClientSession() as s:
+            async with s.get(
+                f"{api_base}/models",
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=8),
+            ) as r:
+                if r.status >= 400:
+                    return web.Response(status=502, text=f"provider returned HTTP {r.status}")
+                data = await r.json()
+    except asyncio.TimeoutError:
+        return web.Response(status=504, text="provider endpoint timed out")
+    except Exception as e:
+        return web.Response(status=502, text=f"could not reach provider: {e}")
+
+    items  = data.get("data") or data.get("models", [])
+    models = [m.get("id") or m.get("name") for m in items if (m.get("id") or m.get("name"))]
+    return web.json_response({"models": models, "count": len(models)})
+
+
+async def handle_provider_test(request: web.Request) -> web.Response:
+    """Test connectivity to a provider endpoint (anonymous GET /models)."""
+    try:
+        body = await request.json()
+    except Exception:
+        return web.Response(status=400, text="invalid JSON")
+
+    api_base = (body.get("apiBase") or "").strip().rstrip("/")
+    api_key  = (body.get("apiKey")  or "").strip()
+
+    if not api_base:
+        return web.Response(status=400, text="apiBase required")
+
+    try:
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        async with aiohttp.ClientSession() as s:
+            async with s.get(
+                f"{api_base}/models",
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=6),
+            ) as r:
+                return web.json_response({"ok": r.status < 400, "status": r.status})
+    except asyncio.TimeoutError:
+        return web.json_response({"ok": False, "error": "timeout"})
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)})

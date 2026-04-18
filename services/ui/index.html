@@ -1144,19 +1144,163 @@
         </div>
 
         <!-- ── SETTINGS ────────────────────────────────────────────── -->
-        <div class="section" x-show="$store.f.activeTab?.type === 'settings'">
+        <div class="section" x-show="$store.f.activeTab?.type === 'settings'"
+             x-data="settingsSection()">
           <div class="sec-head">
             <div class="sec-title">Settings</div>
-            <div class="sec-sub">Provider profiles, default model, app configuration.</div>
+            <div class="sec-sub">Provider profiles, model defaults, app configuration.</div>
           </div>
-          <div class="card">
-            <h3>Provider profiles <span class="phase">Phase 1</span></h3>
-            <p>Add, edit, and test LLM provider connections — Ollama, LM Studio, xAI, OpenAI, custom. Each profile declares its capabilities (text, tools, image, embeddings). All profiles testable with one click.</p>
+
+          <!-- Provider Profiles header -->
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+            <div style="font-size:.85rem;font-weight:600">Provider profiles</div>
+            <button class="btn btn-primary" style="font-size:.75rem"
+                    @click="openAdd()">+ Add provider</button>
           </div>
-          <div class="card">
-            <h3>App config <span class="phase">Phase 1</span></h3>
-            <p>Default model, memory alert threshold, cost indicator soft/hard limits, Lab pre-warm pool size, log level.</p>
+
+          <!-- Add / Edit form -->
+          <div x-show="addOpen"
+               style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:1rem">
+            <div style="font-size:.82rem;font-weight:600;margin-bottom:.7rem"
+                 x-text="editName ? 'Edit: ' + editName : 'Add provider'"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-bottom:.55rem">
+              <div>
+                <label style="font-size:.7rem;color:var(--muted);display:block;margin-bottom:.2rem">Name (slug) *</label>
+                <input type="text" x-model="form.name" :disabled="!!editName"
+                       placeholder="e.g. lmstudio"
+                       style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:.3rem .55rem;color:var(--text);font-size:.78rem;font-family:monospace;outline:none;box-sizing:border-box">
+              </div>
+              <div>
+                <label style="font-size:.7rem;color:var(--muted);display:block;margin-bottom:.2rem">Label</label>
+                <input type="text" x-model="form.label"
+                       placeholder="e.g. LM Studio (local)"
+                       style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:.3rem .55rem;color:var(--text);font-size:.78rem;font-family:inherit;outline:none;box-sizing:border-box">
+              </div>
+              <div style="grid-column:1/-1">
+                <label style="font-size:.7rem;color:var(--muted);display:block;margin-bottom:.2rem">API Base URL * <span style="color:var(--muted);font-weight:400">(e.g. http://localhost:1234/v1)</span></label>
+                <input type="text" x-model="form.apiBase"
+                       placeholder="http://host.docker.internal:1234/v1"
+                       style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:.3rem .55rem;color:var(--text);font-size:.78rem;font-family:monospace;outline:none;box-sizing:border-box">
+              </div>
+              <div>
+                <label style="font-size:.7rem;color:var(--muted);display:block;margin-bottom:.2rem">API Key <span style="font-weight:400">(blank = keep current)</span></label>
+                <input type="password" x-model="form.apiKey"
+                       placeholder="sk-… or leave blank"
+                       style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:.3rem .55rem;color:var(--text);font-size:.78rem;font-family:monospace;outline:none;box-sizing:border-box">
+              </div>
+              <div>
+                <label style="font-size:.7rem;color:var(--muted);display:block;margin-bottom:.2rem">API Key ENV var <span style="font-weight:400">(optional)</span></label>
+                <input type="text" x-model="form.apiKeyEnv"
+                       placeholder="e.g. OPENAI_API_KEY"
+                       style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:.3rem .55rem;color:var(--text);font-size:.78rem;font-family:monospace;outline:none;box-sizing:border-box">
+              </div>
+            </div>
+            <div style="margin-bottom:.55rem">
+              <label style="font-size:.7rem;color:var(--muted);display:block;margin-bottom:.2rem">
+                Static model list — one per line
+                <span style="font-weight:400">(leave empty = live discovery from API on every load)</span>
+              </label>
+              <textarea x-model="form.modelsText" rows="5"
+                        placeholder="grok-4-mini&#10;grok-4&#10;gpt-4o&#10;&#10;Leave empty for providers like Ollama/LM Studio that expose /v1/models"
+                        style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:.3rem .55rem;color:var(--text);font-size:.73rem;font-family:monospace;outline:none;resize:vertical;box-sizing:border-box;line-height:1.5">
+              </textarea>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:.5rem;align-items:center">
+              <span x-show="formError" style="font-size:.72rem;color:var(--red)" x-text="formError"></span>
+              <span x-show="busy" class="spinner"></span>
+              <button class="btn btn-ghost" style="font-size:.75rem" @click="cancelForm()">Cancel</button>
+              <button class="btn btn-primary" style="font-size:.75rem" @click="saveProvider()" :disabled="busy">Save provider</button>
+            </div>
           </div>
+
+          <!-- Provider list -->
+          <div x-show="loading" style="color:var(--muted);font-size:.78rem;margin-bottom:.5rem">
+            <span class="spinner"></span> Loading…
+          </div>
+
+          <template x-for="p in providers" :key="p.name">
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.75rem 1rem;margin-bottom:.65rem">
+              <div style="display:flex;align-items:flex-start;gap:.75rem">
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;align-items:center;gap:.45rem;margin-bottom:.2rem;flex-wrap:wrap">
+                    <span style="font-size:.85rem;font-weight:600" x-text="p.label||p.name"></span>
+                    <span style="font-size:.68rem;color:var(--muted);font-family:monospace;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:.05rem .35rem"
+                          x-text="p.name"></span>
+                    <span x-show="p.liveDiscover"
+                          style="font-size:.64rem;color:var(--accent2);background:var(--accent-dim);border:1px solid var(--accent-border);border-radius:4px;padding:.05rem .3rem">
+                      live discovery
+                    </span>
+                    <span x-show="!p.liveDiscover"
+                          style="font-size:.64rem;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:.05rem .3rem"
+                          x-text="(p.models?.length||0) + ' models (static)'">
+                    </span>
+                    <span x-show="p.hasApiKey && !p.apiKeyEnv"
+                          style="font-size:.64rem;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:.05rem .3rem">
+                      🔑 key set
+                    </span>
+                    <span x-show="p.apiKeyEnv"
+                          style="font-size:.64rem;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:.05rem .3rem"
+                          x-text="'ENV: ' + p.apiKeyEnv">
+                    </span>
+                  </div>
+                  <div style="font-size:.72rem;color:var(--muted);font-family:monospace" x-text="p.apiBase"></div>
+                  <!-- Test result -->
+                  <div x-show="p.testStatus"
+                       style="font-size:.7rem;margin-top:.3rem"
+                       :style="{color: p.testStatus==='ok' ? 'var(--green)' : p.testStatus==='testing' ? 'var(--muted)' : 'var(--red)'}"
+                       x-text="p.testStatus==='ok' ? '✓ Connected' : p.testStatus==='testing' ? 'Testing…' : '✗ ' + (p.testError||'Connection failed')">
+                  </div>
+                </div>
+                <!-- Action buttons -->
+                <div style="display:flex;gap:.3rem;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
+                  <button class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .5rem"
+                          @click="testProvider(p)"
+                          :disabled="p.testStatus==='testing'">Test</button>
+                  <button class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .5rem"
+                          @click="discoverModels(p)"
+                          :disabled="p.discovering"
+                          x-text="p.discovering ? 'Discovering…' : 'Discover'">
+                  </button>
+                  <button class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .5rem"
+                          @click="editProvider(p)">Edit</button>
+                  <button class="btn btn-ghost"
+                          style="font-size:.7rem;padding:.2rem .5rem;color:var(--red);border-color:var(--red)"
+                          @click="deleteProvider(p.name)">Delete</button>
+                </div>
+              </div>
+
+              <!-- Discovered models preview -->
+              <div x-show="p.discoveredModels"
+                   style="margin-top:.65rem;padding-top:.55rem;border-top:1px solid var(--border)">
+                <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;flex-wrap:wrap">
+                  <span style="font-size:.7rem;color:var(--muted)">
+                    Discovered <span x-text="p.discoveredModels?.length||0"></span> models
+                  </span>
+                  <button class="btn btn-primary" style="font-size:.65rem;padding:.1rem .45rem"
+                          @click="saveDiscovered(p)" :disabled="busy">
+                    Save as static list
+                  </button>
+                  <button class="btn btn-ghost" style="font-size:.65rem;padding:.1rem .4rem"
+                          @click="p.discoveredModels=null">
+                    Discard
+                  </button>
+                </div>
+                <div style="font-family:monospace;font-size:.7rem;color:var(--muted2);display:flex;flex-wrap:wrap;gap:.25rem">
+                  <template x-for="m in (p.discoveredModels||[])" :key="m">
+                    <span style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:.1rem .35rem"
+                          x-text="m"></span>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <template x-if="!loading && providers.length === 0">
+            <div class="card">
+              <p style="color:var(--muted)">No providers configured yet. Click <strong>+ Add provider</strong> above.</p>
+            </div>
+          </template>
+
         </div>
 
       </main><!-- /main-content -->
@@ -1764,6 +1908,144 @@
         try {
           const r = await fetch(`/api/factory/agents/${slug}`, { method: 'DELETE' });
           if (r.ok) this.agents = this.agents.filter(a => a.slug !== slug);
+        } catch {}
+        this.busy = false;
+      },
+    }
+  }
+
+  // ── Settings section ───────────────────────────────────────────────────────
+  function settingsSection() {
+    return {
+      providers: [],
+      loading:   false,
+      busy:      false,
+      addOpen:   false,
+      editName:  null,
+      form: { name: '', label: '', apiBase: '', apiKey: '', apiKeyEnv: '', modelsText: '' },
+      formError: '',
+
+      async init() { await this.fetchProviders(); },
+
+      async fetchProviders() {
+        this.loading = true;
+        try {
+          const r = await fetch('/api/providers');
+          if (r.ok) {
+            const d = await r.json();
+            this.providers = (d.providers || []).map(p => ({
+              ...p,
+              testStatus: null, testError: null,
+              discovering: false, discoveredModels: null,
+            }));
+          }
+        } catch {}
+        this.loading = false;
+      },
+
+      openAdd() {
+        this.editName = null;
+        this.form = { name: '', label: '', apiBase: '', apiKey: '', apiKeyEnv: '', modelsText: '' };
+        this.formError = '';
+        this.addOpen = true;
+      },
+
+      editProvider(p) {
+        this.editName = p.name;
+        this.form = {
+          name:       p.name,
+          label:      p.label || '',
+          apiBase:    p.apiBase || '',
+          apiKey:     '',
+          apiKeyEnv:  p.apiKeyEnv || '',
+          modelsText: (p.models || []).join('\n'),
+        };
+        this.formError = '';
+        this.addOpen = true;
+      },
+
+      cancelForm() {
+        this.addOpen = false;
+        this.editName = null;
+        this.form = { name: '', label: '', apiBase: '', apiKey: '', apiKeyEnv: '', modelsText: '' };
+        this.formError = '';
+      },
+
+      async saveProvider() {
+        this.formError = '';
+        if (!this.form.name?.trim()) { this.formError = 'Name is required'; return; }
+        if (!this.form.apiBase?.trim()) { this.formError = 'API Base URL is required'; return; }
+        this.busy = true;
+        try {
+          const models = this.form.modelsText.trim()
+            ? this.form.modelsText.trim().split('\n').map(s => s.trim()).filter(Boolean)
+            : [];
+          const r = await fetch('/api/providers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name:      this.form.name.trim(),
+              label:     this.form.label.trim() || this.form.name.trim(),
+              apiBase:   this.form.apiBase.trim(),
+              apiKey:    this.form.apiKey,
+              apiKeyEnv: this.form.apiKeyEnv.trim(),
+              models,
+            }),
+          });
+          if (r.ok) { this.cancelForm(); await this.fetchProviders(); }
+          else { this.formError = (await r.text()) || 'Save failed'; }
+        } catch (e) { this.formError = e.message; }
+        this.busy = false;
+      },
+
+      async deleteProvider(name) {
+        if (!confirm(`Delete provider "${name}"? This also removes it from the model picker.`)) return;
+        try {
+          const r = await fetch(`/api/providers/${encodeURIComponent(name)}`, { method: 'DELETE' });
+          if (r.ok) await this.fetchProviders();
+        } catch {}
+      },
+
+      async testProvider(p) {
+        p.testStatus = 'testing'; p.testError = null;
+        try {
+          const r = await fetch('/api/providers/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ apiBase: p.apiBase, apiKey: '' }),
+          });
+          const d = await r.json();
+          p.testStatus = d.ok ? 'ok' : 'error';
+          p.testError  = d.error || null;
+        } catch (e) { p.testStatus = 'error'; p.testError = e.message; }
+      },
+
+      async discoverModels(p) {
+        p.discovering = true; p.discoveredModels = null;
+        try {
+          const r = await fetch(`/api/providers/${encodeURIComponent(p.name)}/discover`);
+          if (r.ok) { const d = await r.json(); p.discoveredModels = d.models || []; }
+          else { alert('Discover failed: ' + (await r.text())); }
+        } catch (e) { alert('Discover error: ' + e.message); }
+        p.discovering = false;
+      },
+
+      async saveDiscovered(p) {
+        if (!p.discoveredModels?.length) return;
+        this.busy = true;
+        try {
+          const r = await fetch('/api/providers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name:      p.name,
+              label:     p.label,
+              apiBase:   p.apiBase,
+              apiKeyEnv: p.apiKeyEnv || '',
+              models:    p.discoveredModels,
+            }),
+          });
+          if (r.ok) { p.models = [...p.discoveredModels]; p.liveDiscover = false; p.discoveredModels = null; }
         } catch {}
         this.busy = false;
       },
