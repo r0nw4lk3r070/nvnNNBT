@@ -187,6 +187,7 @@ function renderMd(raw) {{
     h = h.replace(/^### (.+)$/gm,'<h3 style="font-size:.95rem;margin:.4em 0 .2em">$1</h3>');
     h = h.replace(/^## (.+)$/gm,'<h2 style="font-size:1.05rem;margin:.5em 0 .2em">$1</h2>');
     h = h.replace(/^# (.+)$/gm,'<h2 style="font-size:1.1rem;margin:.5em 0 .2em">$1</h2>');
+    h = h.replace(/^-\\s+(.+)$/gm,'\u2022\u00a0$1');
     h = h.replace(/\\n/g,'<br>'); return h;
   }}).join('');
 }}

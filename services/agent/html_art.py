@@ -31,7 +31,7 @@ _SHARED_CSS = """
   .hdr-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: .8rem; padding: 5px 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
   .hdr-btn:hover { border-color: var(--accent); }
   .accent { color: var(--accent2); font-weight: 600; }
-  #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+  #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
   .msg { max-width: 78%; padding: 10px 14px; border-radius: 10px; line-height: 1.55; font-size: .92rem; white-space: pre-wrap; word-break: break-word; }
   .msg.user { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 3px; }
   .msg.assistant { align-self: flex-start; background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 3px; }
@@ -352,7 +352,7 @@ function renderMd(raw) {{
     h = h.replace(/\\*([^*]+)\\*/g,'<em>$1</em>');
     h = h.replace(/^### (.+)$/gm,'<h3 style="font-size:.95rem;margin:.4em 0 .2em">$1</h3>');
     h = h.replace(/^## (.+)$/gm,'<h2 style="font-size:1.05rem;margin:.5em 0 .2em">$1</h2>');
-    h = h.replace(/^# (.+)$/gm,'<h2 style="font-size:1.1rem;margin:.5em 0 .2em">$1</h2>');    h = h.replace(/!\[([^\]]*)\]\(([^)]+)\)/g,'<img src="$2" alt="$1" style="max-width:100%;border-radius:8px;margin:4px 0">');    h = h.replace(/\\n/g,'<br>');
+    h = h.replace(/^# (.+)$/gm,'<h2 style="font-size:1.1rem;margin:.5em 0 .2em">$1</h2>');    h = h.replace(/!\[([^\]]*)\]\(([^)]+)\)/g,'<img src="$2" alt="$1" style="max-width:100%;border-radius:8px;margin:4px 0">');    h = h.replace(/^-\\s+(.+)$/gm,'\u2022\u00a0$1');    h = h.replace(/\\n/g,'<br>');
     return h;
   }}).join('');
 }}
