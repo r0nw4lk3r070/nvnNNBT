@@ -787,10 +787,12 @@
               <div class="h-dot" :class="health.factory"></div>
               <span>Factory</span>
             </div>
-            <div class="h-item">
-              <div class="h-dot" :class="health.ollama"></div>
-              <span>Ollama</span>
-            </div>
+            <template x-for="p in healthProviders" :key="p.name">
+              <div class="h-item">
+                <div class="h-dot" :class="p.status"></div>
+                <span x-text="p.name"></span>
+              </div>
+            </template>
           </div>
 
           <!-- Resource bar -->
@@ -1850,7 +1852,7 @@
   // ── Overview section ───────────────────────────────────────────────
   function overviewSection() {
     return {
-      health: { agent: 'idle', factory: 'idle', ollama: 'idle' },
+      health: { agent: 'idle', factory: 'idle' }, healthProviders: [],
       stats:  { cpu_pct: null, ram: null, vram: null },
       events: [],
 
@@ -1868,12 +1870,16 @@
             const d = await r.json()
             this.health.factory = d.status === 'ok' ? 'ok' : 'warn'
             this.health.agent   = d.services?.agent  || 'err'
-            this.health.ollama  = d.services?.ollama || 'err'
+            this.healthProviders = Object.entries(d.services || {})
+              .filter(([k]) => k !== 'agent')
+              .map(([k, v]) => ({ name: k, status: v }))
           } else {
-            this.health.factory = this.health.agent = this.health.ollama = 'err'
+            this.health.factory = this.health.agent = 'err'
+            this.healthProviders = []
           }
         } catch {
-          this.health.factory = this.health.agent = this.health.ollama = 'err'
+          this.health.factory = this.health.agent = 'err'
+          this.healthProviders = []
         }
       },
 

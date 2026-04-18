@@ -2,8 +2,12 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import shutil
 import subprocess
+
+# Allow host to advertise its real physical RAM when Docker/WSL2 limits the container view
+_HOST_RAM_MB = int(os.environ.get("HOST_RAM_MB", "0") or "0")
 
 from fastapi import APIRouter
 
@@ -49,7 +53,7 @@ async def system_stats() -> dict:
         mem = psutil.virtual_memory()
         ram = {
             "used_mb":  mem.used  // (1024 * 1024),
-            "total_mb": mem.total // (1024 * 1024),
+            "total_mb": _HOST_RAM_MB if _HOST_RAM_MB > 0 else mem.total // (1024 * 1024),
         }
     except ImportError:
         pass
