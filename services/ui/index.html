@@ -401,6 +401,240 @@
 </head>
 
 <body x-cloak x-data>
+
+<!-- ═══ ONBOARDING WIZARD ════════════════════════════════════ -->
+<div x-data="wizardApp()" x-show="visible" x-cloak
+     style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)">
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:520px;max-width:calc(100vw - 2rem);max-height:calc(100vh - 2rem);overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.5)">
+
+    <!-- Progress bar -->
+    <div style="height:3px;background:var(--border)">
+      <div style="height:100%;background:var(--accent);transition:width .35s"
+           :style="`width:${(step/4)*100}%`"></div>
+    </div>
+
+    <!-- Header -->
+    <div style="padding:1.5rem 1.75rem .75rem;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.2rem">
+        <!-- step icons -->
+        <template x-if="step===0">
+          <svg viewBox="0 0 20 20" fill="none" stroke="var(--accent)" stroke-width="1.5" style="width:20px;height:20px;flex-shrink:0">
+            <circle cx="10" cy="10" r="8"/><path d="M10 6v4l3 3" stroke-linecap="round"/>
+          </svg>
+        </template>
+        <template x-if="step===1">
+          <svg viewBox="0 0 20 20" fill="none" stroke="var(--accent)" stroke-width="1.5" style="width:20px;height:20px;flex-shrink:0">
+            <path d="M3 6h14M3 10h10M3 14h7" stroke-linecap="round"/>
+          </svg>
+        </template>
+        <template x-if="step===2">
+          <svg viewBox="0 0 20 20" fill="none" stroke="var(--accent)" stroke-width="1.5" style="width:20px;height:20px;flex-shrink:0">
+            <rect x="3" y="5" width="14" height="10" rx="2"/><path d="M7 9h6M7 12h4" stroke-linecap="round"/>
+          </svg>
+        </template>
+        <template x-if="step===3">
+          <svg viewBox="0 0 20 20" fill="none" stroke="var(--accent)" stroke-width="1.5" style="width:20px;height:20px;flex-shrink:0">
+            <circle cx="10" cy="8" r="3"/><path d="M4 18c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke-linecap="round"/>
+          </svg>
+        </template>
+        <template x-if="step===4">
+          <svg viewBox="0 0 20 20" fill="none" stroke="var(--green)" stroke-width="1.5" style="width:20px;height:20px;flex-shrink:0">
+            <circle cx="10" cy="10" r="8"/><path d="M6.5 10l2.5 2.5 4.5-5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </template>
+        <span style="font-size:1rem;font-weight:700"
+              x-text="['Welcome to nvnNNBT','Choose your provider','Configure connection','Choose default model','You\'re all set!'][step]"></span>
+      </div>
+      <div style="font-size:.75rem;color:var(--muted)"
+           x-text="['Let\'s get your AI provider connected — takes about 2 minutes.','Where are your models running?','Fill in the connection details for your provider.','Pick the model you\'d like to use by default.','Your first provider is connected. You can add more anytime in Settings.'][step]">
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div style="flex:1;overflow-y:auto;padding:1.25rem 1.75rem">
+
+      <!-- ── Step 0: Welcome ── -->
+      <template x-if="step===0">
+        <div style="display:flex;flex-direction:column;gap:.85rem">
+          <div style="font-size:.82rem;color:var(--muted2);line-height:1.7">
+            nvnNNBT is a local-first AI agent platform. To get started you need at least one LLM provider — something that serves models on an OpenAI-compatible API.
+          </div>
+          <div style="display:flex;flex-direction:column;gap:.45rem;padding:.85rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:.78rem;color:var(--muted2);line-height:1.65">
+            <div><span style="color:var(--accent2);font-weight:600">Ollama</span> — free, runs locally on your machine. Recommended for getting started.</div>
+            <div><span style="color:var(--accent2);font-weight:600">LM Studio</span> — local GUI app, easy model management.</div>
+            <div><span style="color:var(--accent2);font-weight:600">xAI / OpenAI / Anthropic</span> — cloud APIs, need an API key.</div>
+            <div><span style="color:var(--accent2);font-weight:600">vLLM / LiteLLM / any OpenAI-compat</span> — custom endpoint.</div>
+          </div>
+          <div style="font-size:.75rem;color:var(--muted)">You can add multiple providers and switch between them at any time.</div>
+        </div>
+      </template>
+
+      <!-- ── Step 1: Pick provider type ── -->
+      <template x-if="step===1">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem">
+          <template x-for="opt in providerPresets" :key="opt.id">
+            <div @click="selectPreset(opt)"
+                 style="padding:.85rem 1rem;border-radius:8px;cursor:pointer;border:1.5px solid;transition:all .15s"
+                 :style="{borderColor: selectedPreset?.id===opt.id ? 'var(--accent)' : 'var(--border)', background: selectedPreset?.id===opt.id ? 'var(--accent-dim)' : 'var(--bg)'}">
+              <div style="font-size:.85rem;font-weight:600;margin-bottom:.2rem" x-text="opt.label"></div>
+              <div style="font-size:.7rem;color:var(--muted);line-height:1.5" x-text="opt.description"></div>
+              <div x-show="opt.apiKeyRequired"
+                   style="margin-top:.35rem;font-size:.65rem;color:var(--yellow)">Requires API key</div>
+              <div x-show="!opt.apiKeyRequired"
+                   style="margin-top:.35rem;font-size:.65rem;color:var(--green)">No API key needed</div>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <!-- ── Step 2: Configure ── -->
+      <template x-if="step===2">
+        <div style="display:flex;flex-direction:column;gap:.65rem">
+          <div>
+            <label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:.25rem">Provider name (slug)</label>
+            <input type="text" x-model="cfg.name"
+                   style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .65rem;color:var(--text);font-size:.8rem;font-family:monospace;outline:none;box-sizing:border-box"
+                   :placeholder="selectedPreset?.defaultName || 'my-provider'">
+          </div>
+          <div>
+            <label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:.25rem">API Base URL</label>
+            <input type="text" x-model="cfg.apiBase"
+                   style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .65rem;color:var(--text);font-size:.8rem;font-family:monospace;outline:none;box-sizing:border-box"
+                   :placeholder="selectedPreset?.defaultBase || 'http://localhost:11434/v1'">
+          </div>
+          <template x-if="selectedPreset?.apiKeyRequired">
+            <div>
+              <label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:.25rem">API Key</label>
+              <input type="password" x-model="cfg.apiKey"
+                     style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .65rem;color:var(--text);font-size:.8rem;font-family:monospace;outline:none;box-sizing:border-box"
+                     :placeholder="'e.g. ' + (selectedPreset?.keyPlaceholder||'sk-…')">
+              <div style="font-size:.68rem;color:var(--muted);margin-top:.2rem"
+                   x-text="'Stored locally in workspace/config.json — never sent anywhere except to ' + (selectedPreset?.label||'the provider')">
+              </div>
+            </div>
+          </template>
+          <!-- Test result -->
+          <div style="padding:.65rem .85rem;border-radius:7px;border:1px solid;font-size:.78rem;display:flex;align-items:center;gap:.55rem"
+               :style="{borderColor: testStatus==='ok' ? 'var(--green)' : testStatus==='error' ? 'var(--red)' : 'var(--border)', background: testStatus==='ok' ? 'rgba(0,200,100,.06)' : testStatus==='error' ? 'rgba(255,80,80,.06)' : 'var(--bg)'}">
+            <span x-show="testStatus==='idle'" style="color:var(--muted)">Click "Test connection" to verify your setup.</span>
+            <span class="spinner" x-show="testStatus==='testing'"></span>
+            <span x-show="testStatus==='testing'" style="color:var(--muted)">Connecting…</span>
+            <span x-show="testStatus==='ok'" style="color:var(--green)">✓ Connected successfully</span>
+            <span x-show="testStatus==='error'" style="color:var(--red)" x-text="'✗ ' + (testError||'Could not connect')"></span>
+          </div>
+          <button class="btn btn-ghost" style="font-size:.78rem;align-self:flex-start"
+                  @click="testConnection()" :disabled="testStatus==='testing' || !cfg.apiBase.trim()">
+            Test connection
+          </button>
+        </div>
+      </template>
+
+      <!-- ── Step 3: Pick default model ── -->
+      <template x-if="step===3">
+        <div style="display:flex;flex-direction:column;gap:.65rem">
+          <template x-if="discovering">
+            <div style="display:flex;align-items:center;gap:.6rem;color:var(--muted);font-size:.8rem;padding:.5rem 0">
+              <span class="spinner"></span> Fetching available models from your provider…
+            </div>
+          </template>
+          <template x-if="!discovering && discoveredModels.length > 0">
+            <div>
+              <div style="font-size:.72rem;color:var(--muted);margin-bottom:.5rem"
+                   x-text="`Found ${discoveredModels.length} model${discoveredModels.length!==1?'s':''} — click one to select as default:`">
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:.3rem;max-height:220px;overflow-y:auto">
+                <template x-for="m in discoveredModels" :key="m">
+                  <div @click="cfg.defaultModel=m"
+                       style="font-family:monospace;font-size:.72rem;padding:.25rem .55rem;border-radius:5px;cursor:pointer;border:1px solid;transition:all .12s"
+                       :style="{borderColor: cfg.defaultModel===m ? 'var(--accent)' : 'var(--border)', background: cfg.defaultModel===m ? 'var(--accent-dim)' : 'var(--bg)', color: cfg.defaultModel===m ? 'var(--text)' : 'var(--muted2)'}">
+                    <span x-text="m"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+          <template x-if="!discovering && discoveredModels.length === 0 && cfg.staticModels.length > 0">
+            <div>
+              <div style="font-size:.72rem;color:var(--muted);margin-bottom:.5rem">Select your default model:</div>
+              <div style="display:flex;flex-wrap:wrap;gap:.3rem">
+                <template x-for="m in cfg.staticModels" :key="m">
+                  <div @click="cfg.defaultModel=m"
+                       style="font-family:monospace;font-size:.72rem;padding:.25rem .55rem;border-radius:5px;cursor:pointer;border:1px solid;transition:all .12s"
+                       :style="{borderColor: cfg.defaultModel===m ? 'var(--accent)' : 'var(--border)', background: cfg.defaultModel===m ? 'var(--accent-dim)' : 'var(--bg)', color: cfg.defaultModel===m ? 'var(--text)' : 'var(--muted2)'}">
+                    <span x-text="m"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+          <template x-if="!discovering && discoveredModels.length === 0 && cfg.staticModels.length === 0">
+            <div style="font-size:.78rem;color:var(--muted);padding:.3rem 0">
+              Could not fetch models automatically. You can type a model name manually:
+            </div>
+          </template>
+          <div>
+            <label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:.25rem">Default model name</label>
+            <input type="text" x-model="cfg.defaultModel"
+                   style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .65rem;color:var(--text);font-size:.8rem;font-family:monospace;outline:none;box-sizing:border-box"
+                   placeholder="e.g. llama3.2:latest">
+          </div>
+        </div>
+      </template>
+
+      <!-- ── Step 4: Done ── -->
+      <template x-if="step===4">
+        <div style="display:flex;flex-direction:column;gap:.85rem;align-items:center;text-align:center;padding:.5rem 0">
+          <div style="width:52px;height:52px;border-radius:50%;background:rgba(0,200,100,.12);border:1.5px solid var(--green);display:flex;align-items:center;justify-content:center">
+            <svg viewBox="0 0 20 20" fill="none" stroke="var(--green)" stroke-width="2" style="width:24px;height:24px">
+              <path d="M4 10l4 4 8-8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div>
+            <div style="font-size:.85rem;font-weight:600;margin-bottom:.35rem"
+                 x-text="`Provider &quot;${cfg.name}&quot; added`"></div>
+            <div style="font-size:.78rem;color:var(--muted);line-height:1.65">
+              Default model set to <strong x-text="cfg.defaultModel || '(none)'"></strong>.<br>
+              You can add more providers anytime via <strong>Settings</strong>.
+            </div>
+          </div>
+          <div style="display:flex;gap:.6rem;flex-wrap:wrap;justify-content:center;font-size:.75rem;color:var(--muted2)">
+            <div style="padding:.4rem .75rem;background:var(--bg);border:1px solid var(--border);border-radius:6px">Open <strong>Lab</strong> to build a skill-set</div>
+            <div style="padding:.4rem .75rem;background:var(--bg);border:1px solid var(--border);border-radius:6px">Chat with <strong>Art</strong> via the panel →</div>
+            <div style="padding:.4rem .75rem;background:var(--bg);border:1px solid var(--border);border-radius:6px">Spawn an <strong>Agent</strong> from Agents</div>
+          </div>
+        </div>
+      </template>
+
+    </div><!-- /body -->
+
+    <!-- Footer -->
+    <div style="padding:.9rem 1.75rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:.5rem">
+      <!-- Step counter -->
+      <div style="font-size:.68rem;color:var(--muted)" x-text="step < 4 ? `Step ${step+1} of 4` : ''"></div>
+      <!-- Error -->
+      <div style="flex:1;font-size:.72rem;color:var(--red)" x-show="formError" x-text="formError"></div>
+      <div style="display:flex;gap:.45rem;align-items:center">
+        <span x-show="busy" class="spinner"></span>
+        <!-- Skip (step 0 only) -->
+        <button x-show="step===0" class="btn btn-ghost" style="font-size:.75rem"
+                @click="skip()">Skip for now</button>
+        <!-- Back -->
+        <button x-show="step>0 && step<4" class="btn btn-ghost" style="font-size:.75rem"
+                @click="back()" :disabled="busy">Back</button>
+        <!-- Next / Finish -->
+        <button x-show="step<4" class="btn btn-primary" style="font-size:.75rem;min-width:90px"
+                @click="next()" :disabled="busy || (step===1 && !selectedPreset)"
+                x-text="step===3 ? 'Finish' : 'Next →'">
+        </button>
+        <!-- Close on done -->
+        <button x-show="step===4" class="btn btn-primary" style="font-size:.75rem"
+                @click="finish()">Start using nvnNNBT →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="shell">
 
   <!-- ═══ ACTIVITY BAR ════════════════════════════════════════ -->
@@ -2182,6 +2416,224 @@
           this.scrollBottom();
         }
       },
+    }
+  }
+
+  }
+
+  // ── Onboarding wizard ───────────────────────────────────────────────────────
+  function wizardApp() {
+    return {
+      visible: false,
+      step: 0,
+      busy: false,
+      formError: '',
+      testStatus: 'idle',  // idle | testing | ok | error
+      testError: null,
+      discovering: false,
+      discoveredModels: [],
+      selectedPreset: null,
+      cfg: { name: '', apiBase: '', apiKey: '', apiKeyEnv: '', defaultModel: '', staticModels: [] },
+
+      providerPresets: [
+        {
+          id: 'ollama',
+          label: 'Ollama',
+          description: 'Local Ollama instance. Most popular local runner.',
+          defaultName: 'local',
+          defaultBase: 'http://host.docker.internal:11434/v1',
+          apiKeyRequired: false,
+          liveDiscover: true,
+          staticModels: [],
+        },
+        {
+          id: 'lmstudio',
+          label: 'LM Studio',
+          description: 'Local LM Studio server (OpenAI-compat API).',
+          defaultName: 'lmstudio',
+          defaultBase: 'http://host.docker.internal:1234/v1',
+          apiKeyRequired: false,
+          liveDiscover: true,
+          staticModels: [],
+        },
+        {
+          id: 'xai',
+          label: 'xAI (Grok)',
+          description: 'Grok models via xAI cloud API.',
+          defaultName: 'xai',
+          defaultBase: 'https://api.x.ai/v1',
+          apiKeyRequired: true,
+          keyPlaceholder: 'xai-…',
+          apiKeyEnv: 'GROK_API_KEY',
+          liveDiscover: false,
+          staticModels: ['grok-3-mini-fast', 'grok-3-mini', 'grok-3', 'grok-3-fast'],
+        },
+        {
+          id: 'openai',
+          label: 'OpenAI',
+          description: 'GPT-4o and other OpenAI models.',
+          defaultName: 'openai',
+          defaultBase: 'https://api.openai.com/v1',
+          apiKeyRequired: true,
+          keyPlaceholder: 'sk-…',
+          apiKeyEnv: 'OPENAI_API_KEY',
+          liveDiscover: false,
+          staticModels: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o1', 'o3-mini'],
+        },
+        {
+          id: 'vllm',
+          label: 'vLLM / LiteLLM',
+          description: 'Any OpenAI-compatible server: vLLM, LiteLLM, TGI, etc.',
+          defaultName: 'custom',
+          defaultBase: 'http://host.docker.internal:8000/v1',
+          apiKeyRequired: false,
+          liveDiscover: true,
+          staticModels: [],
+        },
+        {
+          id: 'custom',
+          label: 'Custom',
+          description: 'Any other OpenAI-compatible endpoint.',
+          defaultName: 'custom',
+          defaultBase: '',
+          apiKeyRequired: false,
+          liveDiscover: true,
+          staticModels: [],
+        },
+      ],
+
+      async init() {
+        // Show wizard only when no providers are configured
+        try {
+          const r = await fetch('/api/providers', { signal: AbortSignal.timeout(4000) });
+          if (r.ok) {
+            const d = await r.json();
+            if (!d.providers || d.providers.length === 0) this.visible = true;
+          }
+        } catch {
+          // agent not up yet — don't block UI
+        }
+      },
+
+      selectPreset(opt) {
+        this.selectedPreset = opt;
+        this.cfg.name      = opt.defaultName;
+        this.cfg.apiBase   = opt.defaultBase;
+        this.cfg.apiKey    = '';
+        this.cfg.apiKeyEnv = opt.apiKeyEnv || '';
+        this.cfg.staticModels = opt.staticModels || [];
+        this.cfg.defaultModel = opt.staticModels?.[0] || '';
+        this.testStatus = 'idle';
+      },
+
+      back() {
+        this.formError = '';
+        this.step = Math.max(0, this.step - 1);
+        if (this.step === 2) this.testStatus = 'idle';
+      },
+
+      async next() {
+        this.formError = '';
+        if (this.step === 0) { this.step = 1; return; }
+        if (this.step === 1) {
+          if (!this.selectedPreset) { this.formError = 'Please select a provider type'; return; }
+          this.step = 2;
+          return;
+        }
+        if (this.step === 2) {
+          if (!this.cfg.name.trim())    { this.formError = 'Provider name is required'; return; }
+          if (!this.cfg.apiBase.trim()) { this.formError = 'API Base URL is required'; return; }
+          // Save provider first
+          this.busy = true;
+          try {
+            const models = this.cfg.staticModels.length ? this.cfg.staticModels : [];
+            const r = await fetch('/api/providers', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name:      this.cfg.name.trim(),
+                label:     this.selectedPreset?.label || this.cfg.name.trim(),
+                apiBase:   this.cfg.apiBase.trim(),
+                apiKey:    this.cfg.apiKey,
+                apiKeyEnv: this.cfg.apiKeyEnv,
+                models,
+              }),
+            });
+            if (!r.ok) { this.formError = (await r.text()) || 'Failed to save provider'; this.busy = false; return; }
+          } catch (e) { this.formError = e.message; this.busy = false; return; }
+          this.busy = false;
+          // Move to model step and try discovery
+          this.step = 3;
+          if (this.selectedPreset?.liveDiscover) await this._discoverModels();
+          return;
+        }
+        if (this.step === 3) {
+          // Persist default model into config.json and reload agent
+          if (this.cfg.defaultModel) {
+            try {
+              await fetch('/api/model', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: this.cfg.defaultModel, provider: this.cfg.name }),
+              });
+            } catch {}
+          }
+          // If live-discovered models exist, save them as static list for this provider
+          if (this.discoveredModels.length) {
+            try {
+              await fetch('/api/providers', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  name:      this.cfg.name,
+                  label:     this.selectedPreset?.label || this.cfg.name,
+                  apiBase:   this.cfg.apiBase.trim(),
+                  apiKeyEnv: this.cfg.apiKeyEnv,
+                  models:    this.discoveredModels,
+                }),
+              });
+            } catch {}
+          }
+          this.step = 4;
+        }
+      },
+
+      async testConnection() {
+        this.testStatus = 'testing';
+        this.testError = null;
+        try {
+          const r = await fetch('/api/providers/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ apiBase: this.cfg.apiBase.trim(), apiKey: this.cfg.apiKey }),
+          });
+          const d = await r.json();
+          this.testStatus = d.ok ? 'ok' : 'error';
+          this.testError  = d.error || null;
+        } catch (e) {
+          this.testStatus = 'error';
+          this.testError = e.message;
+        }
+      },
+
+      async _discoverModels() {
+        this.discovering = true;
+        this.discoveredModels = [];
+        try {
+          const r = await fetch(`/api/providers/${encodeURIComponent(this.cfg.name)}/discover`,
+            { signal: AbortSignal.timeout(8000) });
+          if (r.ok) {
+            const d = await r.json();
+            this.discoveredModels = d.models || [];
+            if (!this.cfg.defaultModel && this.discoveredModels.length)
+              this.cfg.defaultModel = this.discoveredModels[0];
+          }
+        } catch {}
+        this.discovering = false;
+      },
+
+      skip() { this.visible = false; },
+      finish() { this.visible = false; },
     }
   }
 
