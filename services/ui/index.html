@@ -1852,13 +1852,31 @@
               </div>
               <div style="display:flex;flex-direction:column;gap:.25rem">
                 <label style="font-size:.7rem;color:var(--muted)">Agent model</label>
-                <input type="text" x-model="runForm.model" placeholder="qwen3:1.7b"
-                       style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.3rem .65rem;color:var(--text);font-size:.75rem;font-family:monospace;outline:none">
+                <select x-model="runForm.model"
+                        style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.3rem .65rem;color:var(--text);font-size:.75rem;font-family:monospace;outline:none">
+                  <template x-for="p in providers" :key="p.name">
+                    <template x-for="m in p.models" :key="p.name + '|' + m.name">
+                      <option :value="m.name" x-text="m.name"></option>
+                    </template>
+                  </template>
+                  <template x-if="!providers.length">
+                    <option value="" disabled>Loading models…</option>
+                  </template>
+                </select>
               </div>
               <div style="display:flex;flex-direction:column;gap:.25rem">
                 <label style="font-size:.7rem;color:var(--muted)">Judge model</label>
-                <input type="text" x-model="runForm.judge_model" placeholder="qwen3:1.7b"
-                       style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.3rem .65rem;color:var(--text);font-size:.75rem;font-family:monospace;outline:none">
+                <select x-model="runForm.judge_model"
+                        style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.3rem .65rem;color:var(--text);font-size:.75rem;font-family:monospace;outline:none">
+                  <template x-for="p in providers" :key="p.name">
+                    <template x-for="m in p.models" :key="p.name + '|' + m.name">
+                      <option :value="m.name" x-text="m.name"></option>
+                    </template>
+                  </template>
+                  <template x-if="!providers.length">
+                    <option value="" disabled>Loading models…</option>
+                  </template>
+                </select>
               </div>
               <div style="display:flex;flex-direction:column;gap:.25rem">
                 <label style="font-size:.7rem;color:var(--muted)">Version tag (optional)</label>
@@ -2925,7 +2943,7 @@
       form: {
         slug:             '',
         name:             '',
-        manager_model:    'qwen3:1.7b',
+        manager_model:    '',
         manager_skillset: '',
         members:          [],   // [{ role, skillset, model }]
       },
@@ -2965,12 +2983,15 @@
             const d = await r.json();
             this.providers = d.providers || [];
             if (!this.modelTab && this.providers.length) this.modelTab = this.providers[0].name;
+            const cur = d.current || this.providers.flatMap(p => p.models)[0]?.name || '';
+            if (!this.form.manager_model) this.form.manager_model = cur;
           }
         } catch {}
       },
 
       addMember() {
-        this.form.members.push({ role: '', skillset: '', model: this.form.manager_model || 'qwen3:1.7b' });
+        const defaultModel = this.form.manager_model || this.providers.flatMap(p => p.models)[0]?.name || '';
+        this.form.members.push({ role: '', skillset: '', model: defaultModel });
       },
 
       removeMember(i) {
@@ -3009,7 +3030,7 @@
               name:             this.form.name,
               manager_model:    this.form.manager_model,
               manager_skillset: this.form.manager_skillset || null,
-              member_model:     'qwen3:1.7b',
+              member_model:     this.providers.flatMap(p => p.models)[0]?.name || '',
               members: this.form.members.map(m => ({
                 role:     m.role.trim(),
                 skillset: m.skillset || null,
@@ -3019,7 +3040,7 @@
           });
           if (r.ok) {
             this.createOpen = false;
-            this.form = { slug: '', name: '', manager_model: 'qwen3:1.7b', manager_skillset: '', members: [] };
+            this.form = { slug: '', name: '', manager_model: this.providers.flatMap(p => p.models)[0]?.name || '', manager_skillset: '', members: [] };
             await this.fetchTeams();
           } else {
             const d = await r.json().catch(() => ({}));
@@ -3076,7 +3097,8 @@
       setError:     '',
       runs:         [],
       runDetail:    null,
-      runForm:      { task_set_name: '', model: 'qwen3:1.7b', judge_model: 'qwen3:1.7b', version_tag: '' },
+      providers:    [],
+      runForm:      { task_set_name: '', model: '', judge_model: '', version_tag: '' },
       runError:     '',
       running:      false,
       lastRunScore: null,
@@ -3085,7 +3107,20 @@
       async init() {
         const r = await fetch('/api/factory/workspaces').catch(() => null);
         if (r?.ok) { const d = await r.json(); this.workspaces = d.workspaces || []; }
-        await this.fetchRuns();
+        await Promise.all([this.fetchRuns(), this.loadModels()]);
+      },
+
+      async loadModels() {
+        try {
+          const r = await fetch('/api/models');
+          if (r.ok) {
+            const d = await r.json();
+            this.providers = d.providers || [];
+            const cur = d.current || (this.providers.flatMap(p => p.models)[0]?.name || '');
+            if (!this.runForm.model)       this.runForm.model       = cur;
+            if (!this.runForm.judge_model) this.runForm.judge_model = cur;
+          }
+        } catch {}
       },
 
       async onWsChange() {
