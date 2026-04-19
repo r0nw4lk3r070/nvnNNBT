@@ -746,6 +746,8 @@ async def handle_agent_status(_: web.Request) -> web.Response:
         "model":     model,
         "mode":      state.AGENT_MODE,
         "ready":     state._agent is not None,
+        "busy":      state._chat_task is not None and not state._chat_task.done(),
+        "lab_busy":  state._lab_task  is not None and not state._lab_task.done(),
     })
 
 
