@@ -85,6 +85,29 @@ services:
       retries: 5
       start_period: 15s
 
+  # ── Chrome: headless Chromium for browser-harness (CDP) ────────────────
+  # Exposes the Chrome DevTools Protocol on port 9222.
+  # The browser-harness daemon resolves the WS URL via BU_CDP_HTTP.
+  chrome:
+    image: zenika/alpine-chrome:latest
+    command:
+      - "--no-sandbox"
+      - "--headless"
+      - "--remote-debugging-address=0.0.0.0"
+      - "--remote-debugging-port=9222"
+      - "--remote-allow-origins=*"
+      - "--disable-gpu"
+      - "--disable-dev-shm-usage"
+    restart: unless-stopped
+    ports:
+      - "${CHROME_PORT:-9222}:9222"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9222/json/version"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   # ── Ollama: local LLM inference ──────────────────────────────────────────
   # Only started with: docker compose --profile bundled-ollama up
   # Default: host Ollama via host.docker.internal (set in .env)
