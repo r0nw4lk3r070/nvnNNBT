@@ -1468,8 +1468,50 @@
 
           <!-- create form -->
           <div x-show="createOpen"
-               style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem 1.1rem;margin-bottom:1rem">
+               style="position:relative;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem 1.1rem;margin-bottom:1rem">
+
+            <!-- ── model picker overlay ─────────────────────────────────────── -->
+            <div x-show="modelPickerOpen" x-cloak
+                 style="position:absolute;inset:0;background:var(--surface);z-index:20;border-radius:8px;display:flex;flex-direction:column;border:1px solid var(--accent-border)">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:.4rem .75rem;border-bottom:1px solid var(--border);flex-shrink:0">
+                <span style="font-size:.75rem;font-weight:600;color:var(--accent)">
+                  Select model —
+                  <span x-text="modelPickerTarget === 'manager' ? 'Manager' : 'Member ' + (modelPickerTarget + 1)"></span>
+                </span>
+                <button @click="modelPickerOpen=false" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;line-height:1;padding:0 4px">&times;</button>
+              </div>
+              <!-- provider tabs -->
+              <div style="display:flex;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto;scrollbar-width:none">
+                <template x-for="p in providers" :key="p.name">
+                  <button style="padding:.3rem .7rem;font-size:.7rem;border:none;background:none;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;font-family:inherit"
+                          :style="{color: modelTab===p.name ? 'var(--accent)' : 'var(--muted)', borderBottomColor: modelTab===p.name ? 'var(--accent)' : 'transparent'}"
+                          @click="modelTab=p.name" x-text="p.label||p.name">
+                  </button>
+                </template>
+                <div x-show="providers.length === 0" style="padding:.3rem .7rem;font-size:.7rem;color:var(--muted)">No providers configured.</div>
+              </div>
+              <!-- model list -->
+              <div style="flex:1;overflow-y:auto;padding:.3rem .4rem">
+                <template x-for="m in (providers.find(p=>p.name===modelTab)?.models||[])" :key="m.name">
+                  <div style="padding:.3rem .55rem;border-radius:5px;cursor:pointer;font-size:.72rem;font-family:monospace;display:flex;align-items:center;gap:.35rem"
+                       :style="{background: modelSelected===m.name ? 'var(--accent-dim)' : 'transparent', color: modelSelected===m.name ? 'var(--text)' : 'var(--muted2)'}"
+                       @click="modelSelected=m.name" x-text="m.name">
+                  </div>
+                </template>
+                <div x-show="(providers.find(p=>p.name===modelTab)?.models||[]).length===0 && providers.length > 0"
+                     style="color:var(--muted);font-size:.72rem;padding:.25rem .55rem">No models — check provider config.</div>
+              </div>
+              <!-- apply -->
+              <div style="padding:.4rem .5rem;border-top:1px solid var(--border);flex-shrink:0;display:flex;gap:.4rem">
+                <button class="btn btn-primary" style="flex:1;font-size:.75rem"
+                        @click="applyModelPick()" :disabled="!modelSelected">Apply</button>
+              </div>
+            </div>
+
+            <!-- ── form content ───────────────────────────────────────────────── -->
             <div style="font-size:.85rem;font-weight:600;margin-bottom:.75rem">Create new team</div>
+
+            <!-- row 1: slug + name -->
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.6rem">
               <div style="display:flex;flex-direction:column;gap:.25rem">
                 <label style="font-size:.7rem;color:var(--muted)">Slug (lowercase, no spaces)</label>
@@ -1481,25 +1523,89 @@
                 <input type="text" x-model="form.name" placeholder="Editorial"
                        style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .65rem;color:var(--text);font-size:.82rem;font-family:inherit;outline:none">
               </div>
-              <div style="display:flex;flex-direction:column;gap:.25rem">
-                <label style="font-size:.7rem;color:var(--muted)">Manager model</label>
-                <input type="text" x-model="form.manager_model" placeholder="qwen3:1.7b"
-                       style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .65rem;color:var(--text);font-size:.82rem;font-family:monospace;outline:none">
-              </div>
-              <div style="display:flex;flex-direction:column;gap:.25rem">
-                <label style="font-size:.7rem;color:var(--muted)">Member model</label>
-                <input type="text" x-model="form.member_model" placeholder="qwen3:1.7b"
-                       style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .65rem;color:var(--text);font-size:.82rem;font-family:monospace;outline:none">
+            </div>
+
+            <!-- Manager row -->
+            <div style="background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:.55rem .75rem;margin-bottom:.75rem">
+              <div style="font-size:.7rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem">Manager</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.5rem;align-items:end">
+                <div style="display:flex;flex-direction:column;gap:.25rem">
+                  <label style="font-size:.7rem;color:var(--muted)">Skillset (workspace)</label>
+                  <select x-model="form.manager_skillset"
+                          style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .65rem;color:var(--text);font-size:.78rem;outline:none;font-family:inherit">
+                    <option value="">(auto-generate)</option>
+                    <template x-for="ws in workspaces" :key="ws.slug">
+                      <option :value="ws.slug" x-text="ws.slug + (ws.skill_count ? ' · ' + ws.skill_count + ' skills' : '')"></option>
+                    </template>
+                  </select>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:.25rem">
+                  <label style="font-size:.7rem;color:var(--muted)">Model</label>
+                  <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .65rem;font-size:.78rem;font-family:monospace;color:var(--accent);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
+                       @click="openModelPicker('manager')"
+                       x-text="form.manager_model || 'pick model…'"
+                       title="Click to change model">
+                  </div>
+                </div>
+                <div style="width:24px"></div>
               </div>
             </div>
-            <div style="display:flex;flex-direction:column;gap:.25rem;margin-bottom:.75rem">
-              <label style="font-size:.7rem;color:var(--muted)">Member roles (comma separated)</label>
-              <input type="text" x-model="form.membersText" placeholder="fetcher, writer, judge"
-                     style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .65rem;color:var(--text);font-size:.82rem;font-family:monospace;outline:none">
+
+            <!-- Members section -->
+            <div style="margin-bottom:.75rem">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem">
+                <label style="font-size:.7rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Members</label>
+                <button class="btn btn-ghost" style="font-size:.7rem;padding:.2rem .55rem" @click="addMember()">+ Add member</button>
+              </div>
+
+              <!-- empty state -->
+              <div x-show="form.members.length === 0"
+                   style="font-size:.78rem;color:var(--muted);padding:.5rem .75rem;background:var(--bg);border:1px dashed var(--border);border-radius:6px;text-align:center">
+                No members yet — click + Add member
+              </div>
+
+              <!-- member rows -->
+              <div style="display:flex;flex-direction:column;gap:.35rem">
+                <template x-for="(m, i) in form.members" :key="i">
+                  <div style="background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:.5rem .65rem;display:grid;grid-template-columns:1fr 1fr auto auto;gap:.45rem;align-items:end">
+                    <!-- role -->
+                    <div style="display:flex;flex-direction:column;gap:.2rem">
+                      <label style="font-size:.68rem;color:var(--muted)">Role</label>
+                      <input type="text" x-model="m.role" placeholder="writer"
+                             style="background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:.3rem .55rem;color:var(--text);font-size:.78rem;font-family:monospace;outline:none">
+                    </div>
+                    <!-- skillset -->
+                    <div style="display:flex;flex-direction:column;gap:.2rem">
+                      <label style="font-size:.68rem;color:var(--muted)">Skillset</label>
+                      <select x-model="m.skillset"
+                              style="background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:.3rem .55rem;color:var(--text);font-size:.75rem;outline:none;font-family:inherit">
+                        <option value="">(auto-generate)</option>
+                        <template x-for="ws in workspaces" :key="ws.slug">
+                          <option :value="ws.slug" x-text="ws.slug + (ws.skill_count ? ' · ' + ws.skill_count + 'sk' : '')"></option>
+                        </template>
+                      </select>
+                    </div>
+                    <!-- model badge -->
+                    <div style="display:flex;flex-direction:column;gap:.2rem">
+                      <label style="font-size:.68rem;color:var(--muted)">Model</label>
+                      <div style="background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:.3rem .55rem;font-size:.72rem;font-family:monospace;color:var(--accent);cursor:pointer;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis"
+                           @click="openModelPicker(i)"
+                           x-text="m.model || 'pick…'"
+                           title="Click to change model">
+                      </div>
+                    </div>
+                    <!-- remove -->
+                    <button style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;line-height:1;padding:0 2px;align-self:flex-end;padding-bottom:.25rem"
+                            @click="removeMember(i)" title="Remove member">&times;</button>
+                  </div>
+                </template>
+              </div>
             </div>
+
+            <!-- submit row -->
             <div style="display:flex;gap:.5rem;align-items:center">
               <button class="btn btn-primary" style="font-size:.78rem"
-                      @click="createTeam()" :disabled="!form.slug || !form.name || !form.membersText || busy">Create</button>
+                      @click="createTeam()" :disabled="!form.slug || !form.name || !form.members.length || busy">Create</button>
               <button class="btn btn-ghost" style="font-size:.78rem"
                       @click="createOpen = false; createError = ''">Cancel</button>
               <span x-show="createError" style="font-size:.75rem;color:var(--red)" x-text="createError"></span>
@@ -1895,7 +2001,7 @@
                     <span>CPU</span>
                     <span x-text="stats.cpu_pct != null ? stats.cpu_pct.toFixed(0) + '%' : '—'"></span>
                   </div>
-                  <svg width="100%" height="32" style="display:block;overflow:visible">
+                  <svg width="100%" height="56" style="display:block;overflow:visible">
                     <polyline :points="sparkPoints(cpuHistory)" fill="none"
                               :stroke="(stats.cpu_pct ?? 0) > 85 ? 'var(--red)' : (stats.cpu_pct ?? 0) > 60 ? 'var(--yellow)' : 'var(--accent)'"
                               stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -1909,7 +2015,7 @@
                       <span>RAM</span>
                       <span x-text="`${(stats.ram.used_mb/1024).toFixed(1)} / ${(stats.ram.total_mb/1024).toFixed(1)} GB`"></span>
                     </div>
-                    <svg width="100%" height="32" style="display:block;overflow:visible">
+                    <svg width="100%" height="56" style="display:block;overflow:visible">
                       <polyline :points="sparkPoints(ramHistory)" fill="none"
                                 :stroke="stats.ram.used_mb / stats.ram.total_mb > .85 ? 'var(--red)' : stats.ram.used_mb / stats.ram.total_mb > .65 ? 'var(--yellow)' : 'var(--green)'"
                                 stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -1924,7 +2030,7 @@
                       <span>VRAM</span>
                       <span x-text="`${(stats.vram.used_mb/1024).toFixed(1)} / ${(stats.vram.total_mb/1024).toFixed(1)} GB`"></span>
                     </div>
-                    <svg width="100%" height="32" style="display:block;overflow:visible">
+                    <svg width="100%" height="56" style="display:block;overflow:visible">
                       <polyline :points="sparkPoints(vramHistory)" fill="none"
                                 :stroke="stats.vram.used_mb / stats.vram.total_mb > .85 ? 'var(--red)' : stats.vram.used_mb / stats.vram.total_mb > .65 ? 'var(--yellow)' : 'var(--accent)'"
                                 stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -2805,15 +2911,29 @@
   // ── Teams section ──────────────────────────────────────────────────────────
   function teamsSection() {
     return {
-      teams:       [],
-      loading:     false,
-      busy:        false,
-      createOpen:  false,
-      createError: '',
-      form: { slug: '', name: '', manager_model: 'qwen3:1.7b', member_model: 'qwen3:1.7b', membersText: '' },
+      teams:            [],
+      loading:          false,
+      busy:             false,
+      createOpen:       false,
+      createError:      '',
+      workspaces:       [],
+      providers:        [],
+      modelTab:         '',
+      modelSelected:    '',
+      modelPickerOpen:  false,
+      modelPickerTarget: null,   // 'manager' | member index (number)
+      form: {
+        slug:             '',
+        name:             '',
+        manager_model:    'qwen3:1.7b',
+        manager_skillset: '',
+        members:          [],   // [{ role, skillset, model }]
+      },
 
       async init() {
         await this.fetchTeams();
+        this.fetchWorkspaces();
+        this.fetchProviders();
         setInterval(() => this.fetchTeams(), 15000);
       },
 
@@ -2826,24 +2946,80 @@
         this.loading = false;
       },
 
+      async fetchWorkspaces() {
+        try {
+          const r = await fetch('/api/factory/workspaces');
+          if (r.ok) {
+            const d = await r.json();
+            this.workspaces = (d.workspaces || []).filter(
+              w => !w.slug.startsWith('_') && w.slug !== 'teams'
+            );
+          }
+        } catch {}
+      },
+
+      async fetchProviders() {
+        try {
+          const r = await fetch('/api/models', { signal: AbortSignal.timeout(4000) });
+          if (r.ok) {
+            const d = await r.json();
+            this.providers = d.providers || [];
+            if (!this.modelTab && this.providers.length) this.modelTab = this.providers[0].name;
+          }
+        } catch {}
+      },
+
+      addMember() {
+        this.form.members.push({ role: '', skillset: '', model: this.form.manager_model || 'qwen3:1.7b' });
+      },
+
+      removeMember(i) {
+        this.form.members.splice(i, 1);
+      },
+
+      openModelPicker(target) {
+        this.modelPickerTarget = target;
+        this.modelSelected = target === 'manager'
+          ? this.form.manager_model
+          : (this.form.members[target]?.model || 'qwen3:1.7b');
+        if (!this.modelTab && this.providers.length) this.modelTab = this.providers[0].name;
+        this.modelPickerOpen = true;
+      },
+
+      applyModelPick() {
+        if (!this.modelSelected) return;
+        if (this.modelPickerTarget === 'manager') {
+          this.form.manager_model = this.modelSelected;
+        } else {
+          this.form.members[this.modelPickerTarget].model = this.modelSelected;
+        }
+        this.modelPickerOpen = false;
+      },
+
       async createTeam() {
-        const members = this.form.membersText.split(',').map(s => s.trim()).filter(Boolean);
-        if (!members.length) { this.createError = 'Add at least one member role'; return; }
+        if (!this.form.members.length) { this.createError = 'Add at least one member'; return; }
+        const invalidRole = this.form.members.find(m => !m.role.trim());
+        if (invalidRole) { this.createError = 'All members need a role name'; return; }
         this.busy = true; this.createError = '';
         try {
           const r = await fetch('/api/factory/teams', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              slug:           this.form.slug,
-              name:           this.form.name,
-              members:        members,
-              manager_model:  this.form.manager_model,
-              member_model:   this.form.member_model,
+              slug:             this.form.slug,
+              name:             this.form.name,
+              manager_model:    this.form.manager_model,
+              manager_skillset: this.form.manager_skillset || null,
+              member_model:     'qwen3:1.7b',
+              members: this.form.members.map(m => ({
+                role:     m.role.trim(),
+                skillset: m.skillset || null,
+                model:    m.model || null,
+              })),
             }),
           });
           if (r.ok) {
             this.createOpen = false;
-            this.form = { slug: '', name: '', manager_model: 'qwen3:1.7b', member_model: 'qwen3:1.7b', membersText: '' };
+            this.form = { slug: '', name: '', manager_model: 'qwen3:1.7b', manager_skillset: '', members: [] };
             await this.fetchTeams();
           } else {
             const d = await r.json().catch(() => ({}));
@@ -3174,7 +3350,7 @@
 
       sparkPoints(arr) {
         if (!arr || arr.length < 2) return ''
-        const W = 300, H = 30, pad = 2
+        const W = 300, H = 54, pad = 2
         const max = Math.max(...arr, 1)
         return arr.map((v, i) => {
           const x = (i / (arr.length - 1)) * W
