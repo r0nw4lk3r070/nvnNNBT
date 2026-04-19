@@ -781,6 +781,15 @@
       </svg>
     </button>
 
+    <button class="act-btn" data-tip="DevOps"
+      :class="{active: $store.f.hasActive('devops')}"
+      @click="$store.f.open('devops', $event)">
+      <!-- pulse / activity -->
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M1 10h3l2.5-7 3 14 2.5-7 2 4H19"/>
+      </svg>
+    </button>
+
     <div class="act-spacer"></div>
 
     <button class="act-btn" data-tip="Settings"
@@ -1802,6 +1811,157 @@
           </div>
         </div>
 
+        <!-- ── DEVOPS ─────────────────────────────────────────────── -->
+        <template x-if="$store.f.activeTab?.type === 'devops'">
+          <div class="section" x-data="devopsSection()">
+            <div class="sec-head">
+              <div class="sec-title">DevOps</div>
+              <div class="sec-sub">Live agent activity, resource usage, event stream. Polling stops when this tab is closed.</div>
+            </div>
+
+            <!-- ─ Agent cards ─ -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.75rem;margin-bottom:1.25rem">
+
+              <!-- Art card -->
+              <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.9rem 1.1rem">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.55rem">
+                  <span style="font-size:.78rem;font-weight:600">Art</span>
+                  <div style="display:flex;align-items:center;gap:.4rem">
+                    <div style="width:7px;height:7px;border-radius:50%;flex-shrink:0"
+                         :style="{ background: art.ready ? 'var(--green)' : 'var(--muted)', boxShadow: art.ready ? '0 0 5px var(--green)' : 'none' }"></div>
+                    <span style="font-size:.68rem;color:var(--muted)" x-text="art.ready ? (art.busy ? 'busy' : 'idle') : 'offline'"></span>
+                  </div>
+                </div>
+                <div style="font-size:.7rem;color:var(--muted);margin-bottom:.5rem" x-text="art.model || '—'"></div>
+                <!-- EQ bars -->
+                <div style="display:flex;gap:2px;align-items:flex-end;height:28px">
+                  <template x-for="b in art.eq" :key="b.i">
+                    <div style="flex:1;border-radius:2px 2px 0 0;transition:height .18s ease"
+                         :style="{ height: b.h + 'px', background: art.busy ? 'var(--accent)' : 'var(--border)' }"></div>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Sandbox card -->
+              <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.9rem 1.1rem">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.55rem">
+                  <span style="font-size:.78rem;font-weight:600">Sandbox</span>
+                  <div style="display:flex;align-items:center;gap:.4rem">
+                    <div style="width:7px;height:7px;border-radius:50%;flex-shrink:0"
+                         :style="{ background: sb.loaded ? 'var(--green)' : 'var(--muted)', boxShadow: sb.loaded ? '0 0 5px var(--green)' : 'none' }"></div>
+                    <span style="font-size:.68rem;color:var(--muted)" x-text="!sb.loaded ? 'no workspace' : (art.lab_busy ? 'busy' : 'idle')"></span>
+                  </div>
+                </div>
+                <div style="font-size:.7rem;color:var(--muted);margin-bottom:.5rem" x-text="sb.name ? sb.name + (sb.model ? ' · ' + sb.model : '') : '—'"></div>
+                <!-- EQ bars -->
+                <div style="display:flex;gap:2px;align-items:flex-end;height:28px">
+                  <template x-for="b in sb.eq" :key="b.i">
+                    <div style="flex:1;border-radius:2px 2px 0 0;transition:height .18s ease"
+                         :style="{ height: b.h + 'px', background: art.lab_busy ? 'var(--accent)' : 'var(--border)' }"></div>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Spawned agents -->
+              <template x-for="ag in spawned" :key="ag.slug">
+                <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.9rem 1.1rem">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.55rem">
+                    <span style="font-size:.78rem;font-weight:600" x-text="ag.slug"></span>
+                    <div style="display:flex;align-items:center;gap:.4rem">
+                      <div style="width:7px;height:7px;border-radius:50%;flex-shrink:0"
+                           :style="{ background: ag.status === 'running' ? 'var(--green)' : 'var(--red)', boxShadow: ag.status === 'running' ? '0 0 5px var(--green)' : 'none' }"></div>
+                      <span style="font-size:.68rem;color:var(--muted)" x-text="ag.status"></span>
+                    </div>
+                  </div>
+                  <div style="font-size:.7rem;color:var(--muted);margin-bottom:.5rem" x-text="ag.model || '—'"></div>
+                  <div style="display:flex;gap:2px;align-items:flex-end;height:28px">
+                    <template x-for="b in ag.eq" :key="b.i">
+                      <div style="flex:1;border-radius:2px 2px 0 0;background:var(--border)"
+                           :style="{ height: b.h + 'px' }"></div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <!-- ─ Resource sparklines ─ -->
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.9rem 1.25rem;margin-bottom:1rem">
+              <div style="font-size:.72rem;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:.75rem">Resources</div>
+              <div style="display:flex;flex-direction:column;gap:.9rem">
+
+                <!-- CPU -->
+                <div>
+                  <div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--muted);margin-bottom:.3rem">
+                    <span>CPU</span>
+                    <span x-text="stats.cpu_pct != null ? stats.cpu_pct.toFixed(0) + '%' : '—'"></span>
+                  </div>
+                  <svg width="100%" height="32" style="display:block;overflow:visible">
+                    <polyline :points="sparkPoints(cpuHistory)" fill="none"
+                              :stroke="(stats.cpu_pct ?? 0) > 85 ? 'var(--red)' : (stats.cpu_pct ?? 0) > 60 ? 'var(--yellow)' : 'var(--accent)'"
+                              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+
+                <!-- RAM -->
+                <template x-if="stats.ram">
+                  <div>
+                    <div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--muted);margin-bottom:.3rem">
+                      <span>RAM</span>
+                      <span x-text="`${(stats.ram.used_mb/1024).toFixed(1)} / ${(stats.ram.total_mb/1024).toFixed(1)} GB`"></span>
+                    </div>
+                    <svg width="100%" height="32" style="display:block;overflow:visible">
+                      <polyline :points="sparkPoints(ramHistory)" fill="none"
+                                :stroke="stats.ram.used_mb / stats.ram.total_mb > .85 ? 'var(--red)' : stats.ram.used_mb / stats.ram.total_mb > .65 ? 'var(--yellow)' : 'var(--green)'"
+                                stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </div>
+                </template>
+
+                <!-- VRAM -->
+                <template x-if="stats.vram">
+                  <div>
+                    <div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--muted);margin-bottom:.3rem">
+                      <span>VRAM</span>
+                      <span x-text="`${(stats.vram.used_mb/1024).toFixed(1)} / ${(stats.vram.total_mb/1024).toFixed(1)} GB`"></span>
+                    </div>
+                    <svg width="100%" height="32" style="display:block;overflow:visible">
+                      <polyline :points="sparkPoints(vramHistory)" fill="none"
+                                :stroke="stats.vram.used_mb / stats.vram.total_mb > .85 ? 'var(--red)' : stats.vram.used_mb / stats.vram.total_mb > .65 ? 'var(--yellow)' : 'var(--accent)'"
+                                stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- ─ Event stream ─ -->
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:.6rem 1rem;border-bottom:1px solid var(--border)">
+                <span style="font-size:.72rem;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase">Event stream</span>
+                <div style="display:flex;align-items:center;gap:.4rem">
+                  <div style="width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 4px var(--green)"></div>
+                  <span style="font-size:.68rem;color:var(--muted)">live</span>
+                </div>
+              </div>
+              <div style="height:240px;overflow-y:auto;padding:.5rem .75rem;display:flex;flex-direction:column-reverse;gap:.15rem;scrollbar-width:thin;scrollbar-color:var(--border) transparent">
+                <template x-if="$store.f.logs.length === 0">
+                  <div style="color:var(--muted);font-size:.75rem;padding:.75rem 0;font-style:italic">No events yet.</div>
+                </template>
+                <template x-for="(ev, idx) in [...$store.f.logs].reverse().slice(0, 80)" :key="idx">
+                  <div style="display:flex;gap:.5rem;align-items:baseline;font-size:.72rem;font-family:monospace;padding:.18rem 0;border-bottom:1px solid var(--border)">
+                    <span style="color:var(--muted);flex-shrink:0" x-text="ev.ts"></span>
+                    <span style="flex-shrink:0;width:36px"
+                          :style="{ color: ev.level === 'error' ? 'var(--red)' : ev.level === 'warn' ? 'var(--yellow)' : 'var(--green)' }"
+                          x-text="ev.level"></span>
+                    <span style="color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="ev.msg"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+          </div>
+        </template>
+
         <!-- ── SETTINGS ────────────────────────────────────────────── -->
         <div class="section" x-show="$store.f.activeTab?.type === 'settings'"
              x-data="settingsSection()">
@@ -2208,6 +2368,7 @@
     benchmark: 'Benchmark',
     settings:  'Settings',
     sandbox:   'Sandbox',
+    devops:    'DevOps',
   }
 
   document.addEventListener('alpine:init', () => {
@@ -2923,6 +3084,103 @@
           if (r.ok) this.agents = this.agents.filter(a => a.slug !== slug);
         } catch {}
         this.busy = false;
+      },
+    }
+  }
+
+  // ── DevOps section ─────────────────────────────────────────────────────────
+  function devopsSection() {
+    const EQ_COLS = 12
+    function makeEq() { return Array.from({length: EQ_COLS}, (_, i) => ({i, h: Math.floor(Math.random() * 10) + 3})) }
+    function tickEq(eq, busy) {
+      if (!busy) return eq.map(b => ({...b, h: 3}))
+      return eq.map(b => ({...b, h: Math.random() > .45 ? Math.floor(Math.random() * 22) + 4 : b.h}))
+    }
+    return {
+      art:        { ready: false, busy: false, lab_busy: false, model: '', eq: makeEq() },
+      sb:         { loaded: false, name: null, model: '', eq: makeEq() },
+      spawned:    [],
+      stats:      { cpu_pct: null, ram: null, vram: null },
+      cpuHistory:  [],
+      ramHistory:  [],
+      vramHistory: [],
+      _iStats: null, _iAgents: null, _iStatus: null, _iEq: null,
+
+      init() {
+        this._fetchStatus()
+        this._fetchAgents()
+        this._fetchStats()
+        this._iStatus = setInterval(() => this._fetchStatus(), 5000)
+        this._iAgents = setInterval(() => this._fetchAgents(), 5000)
+        this._iStats  = setInterval(() => this._fetchStats(),  3000)
+        this._iEq     = setInterval(() => {
+          this.art.eq = tickEq(this.art.eq, this.art.busy || this.art.lab_busy)
+          this.sb.eq  = tickEq(this.sb.eq,  this.art.lab_busy)
+        }, 320)
+      },
+
+      destroy() {
+        clearInterval(this._iStatus)
+        clearInterval(this._iAgents)
+        clearInterval(this._iStats)
+        clearInterval(this._iEq)
+      },
+
+      async _fetchStatus() {
+        try {
+          const r = await fetch('/api/status')
+          if (r.ok) {
+            const d = await r.json()
+            this.art.ready    = d.ready    ?? false
+            this.art.busy     = d.busy     ?? false
+            this.art.lab_busy = d.lab_busy ?? false
+            this.art.model    = d.model    ?? ''
+          }
+        } catch {}
+        try {
+          const r = await fetch('/api/factory/sandbox/status')
+          if (r.ok) {
+            const d = await r.json()
+            this.sb.loaded = d.loaded ?? false
+            this.sb.name   = d.name   ?? null
+            this.sb.model  = d.model  ?? ''
+          }
+        } catch {}
+      },
+
+      async _fetchAgents() {
+        try {
+          const r = await fetch('/api/factory/agents')
+          if (!r.ok) return
+          const list = await r.json()
+          this.spawned = (Array.isArray(list) ? list : list.agents ?? []).map(ag => ({
+            ...ag, eq: makeEq()
+          }))
+        } catch {}
+      },
+
+      async _fetchStats() {
+        try {
+          const r = await fetch('/api/factory/system/stats')
+          if (!r.ok) return
+          const d = await r.json()
+          this.stats = d
+          const MAX = 30
+          this.cpuHistory  = [...this.cpuHistory,  d.cpu_pct ?? 0].slice(-MAX)
+          if (d.ram)  this.ramHistory  = [...this.ramHistory,  d.ram.total_mb  ? d.ram.used_mb  / d.ram.total_mb  * 100 : 0].slice(-MAX)
+          if (d.vram) this.vramHistory = [...this.vramHistory, d.vram.total_mb ? d.vram.used_mb / d.vram.total_mb * 100 : 0].slice(-MAX)
+        } catch {}
+      },
+
+      sparkPoints(arr) {
+        if (!arr || arr.length < 2) return ''
+        const W = 300, H = 30, pad = 2
+        const max = Math.max(...arr, 1)
+        return arr.map((v, i) => {
+          const x = (i / (arr.length - 1)) * W
+          const y = H - pad - ((v / max) * (H - pad * 2))
+          return `${x.toFixed(1)},${y.toFixed(1)}`
+        }).join(' ')
       },
     }
   }
