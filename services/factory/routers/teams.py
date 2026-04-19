@@ -140,6 +140,25 @@ def _make_workspace(path: Path, identity_files: dict[str, str]) -> None:
             p.write_text(content, encoding="utf-8")
 
 
+def _copy_skillset(src_slug: str, dst: Path) -> None:
+    """Copy identity files and skills/ from an existing workspace into dst.
+    Skips config.json — model is set separately per member."""
+    _IDENTITY = ["SOUL.md", "AGENTS.md", "TOOLS.md", "HEARTBEAT.md", "USER.md"]
+    src = WORKSPACES_ROOT / src_slug
+    if not src.exists():
+        raise HTTPException(status_code=404, detail=f"Skillset workspace '{src_slug}' not found")
+    for fname in _IDENTITY:
+        fp = src / fname
+        if fp.exists():
+            (dst / fname).write_text(fp.read_text(encoding="utf-8"), encoding="utf-8")
+    src_skills = src / "skills"
+    if src_skills.exists():
+        dst_skills = dst / "skills"
+        if dst_skills.exists():
+            shutil.rmtree(dst_skills)
+        shutil.copytree(src_skills, dst_skills)
+
+
 # ── List teams ────────────────────────────────────────────────────────────────
 
 @router.get("")
@@ -232,12 +251,19 @@ async def get_team(slug: str) -> dict:
 
 # ── Create team workspace ─────────────────────────────────────────────────────
 
+class MemberSpec(BaseModel):
+    role:     str
+    skillset: Optional[str] = None   # workspace slug to copy identity files from
+    model:    Optional[str] = None   # per-member model override
+
+
 class CreateTeamBody(BaseModel):
-    slug: str
-    name: str
-    members: list[str]           # list of role names, e.g. ["fetcher", "writer"]
-    manager_model: str = "qwen3:1.7b"
-    member_model:  str = "qwen3:1.7b"
+    slug:             str
+    name:             str
+    members:          list[MemberSpec]
+    manager_model:    str = "qwen3:1.7b"
+    manager_skillset: Optional[str] = None   # workspace slug for manager identity
+    member_model:     str = "qwen3:1.7b"     # default model when member.model is None
 
 
 class SpawnTeamBody(BaseModel):
@@ -263,9 +289,10 @@ async def create_team(body: CreateTeamBody) -> dict:
     ollama_base = os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
     manager_slug = f"{body.slug}-manager"
 
-    # Create team root (manager workspace)
-    members_meta = [{"slug": f"{body.slug}-{r}", "role": r} for r in body.members]
+    members_meta = [{"slug": f"{body.slug}-{m.role}", "role": m.role} for m in body.members]
 
+    # ── Manager workspace ─────────────────────────────────────────────────────
+    # Build default identity content (used when no skillset is selected)
     soul_content = f"""# Soul
 
 I am {body.name} Manager, the orchestrator of the {body.name} team.
@@ -318,6 +345,10 @@ POST to `http://localhost:<chat_port>/chat` with:
         "USER.md":      "# User\n\nThe user who spawned this team.\n",
     })
 
+    # Override with skillset if provided
+    if body.manager_skillset:
+        _copy_skillset(body.manager_skillset, team_root)
+
     # Manager config.json
     mgr_cfg = _default_config(ollama_base, body.manager_model)
     (team_root / "config.json").write_text(json.dumps(mgr_cfg, indent=2) + "\n", encoding="utf-8")
@@ -327,33 +358,38 @@ POST to `http://localhost:<chat_port>/chat` with:
     (team_root / "knowledge" / "inbox").mkdir(exist_ok=True)
     (team_root / "knowledge" / "library").mkdir(exist_ok=True)
 
-    # Member workspaces
+    # ── Member workspaces ─────────────────────────────────────────────────────
     members_dir = team_root / "members"
-    for m in members_meta:
-        member_path = members_dir / m["role"]
+    for spec, m in zip(body.members, members_meta):
+        member_path = members_dir / spec.role
         _make_workspace(member_path, {
-            "SOUL.md":      f"# Soul\n\nI am {m['role']} in the {body.name} team.\n",
-            "AGENTS.md":    f"# Role\n\nI am the **{m['role']}**. I receive tasks from the manager and complete them.\n",
+            "SOUL.md":      f"# Soul\n\nI am {spec.role} in the {body.name} team.\n",
+            "AGENTS.md":    f"# Role\n\nI am the **{spec.role}**. I receive tasks from the manager and complete them.\n",
             "TOOLS.md":     "# Tools\n\nStandard tool set.\n",
             "HEARTBEAT.md": f"# Heartbeat\n\nFocus. Execute. Report back.\n",
             "USER.md":      "# User\n\nThe team manager.\n",
         })
-        member_cfg = _default_config(ollama_base, body.member_model)
+        # Override with skillset if provided
+        if spec.skillset:
+            _copy_skillset(spec.skillset, member_path)
+
+        member_model = spec.model or body.member_model
+        member_cfg = _default_config(ollama_base, member_model)
         (member_path / "config.json").write_text(
             json.dumps(member_cfg, indent=2) + "\n", encoding="utf-8"
         )
 
-    # Register team in DB
+    # ── Register in DB ────────────────────────────────────────────────────────
     with get_conn(DB_PATH) as conn:
         conn.execute(
             "INSERT INTO agent_teams (slug, name, knowledge_dir, orchestrator_slug, created_at) "
             "VALUES (?, ?, ?, ?, ?)",
             (body.slug, body.name, str(team_root / "knowledge"), manager_slug, int(time.time())),
         )
-        for m in members_meta:
+        for spec, m in zip(body.members, members_meta):
             conn.execute(
                 "INSERT INTO team_members (team_slug, agent_slug, model) VALUES (?, ?, ?)",
-                (body.slug, m["slug"], body.member_model),
+                (body.slug, m["slug"], spec.model or body.member_model),
             )
 
     log_event("team_create", target_type="team", target_slug=body.slug,
