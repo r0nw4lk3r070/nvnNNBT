@@ -1765,6 +1765,37 @@
               </div>
             </template>
           </div>
+
+          <!-- Member overrides -->
+          <div class="card" x-show="selected && selected.manager_status === 'running'">
+            <div class="card-head">
+              <span>Member overrides — <strong x-text="selected?.name"></strong></span>
+              <span class="muted" style="font-size:11px">Hot-swap model or skillset without respawning</span>
+            </div>
+            <template x-for="m in (selected?.members || [])" :key="m.slug">
+              <div class="agent-row" style="flex-wrap:wrap;gap:6px;align-items:center">
+                <div class="agent-info" style="min-width:120px">
+                  <span class="agent-name" x-text="m.role"></span>
+                  <span class="agent-slug" x-text="m.slug"></span>
+                </div>
+                <div style="display:flex;gap:6px;align-items:center;flex:1;flex-wrap:wrap">
+                  <input type="text" class="input-sm"
+                         style="width:160px"
+                         placeholder="model (blank = keep)"
+                         x-model="overrideInputs[m.slug + ':model']">
+                  <select class="input-sm" style="width:160px"
+                          x-model="overrideInputs[m.slug + ':skillset']">
+                    <option value="">— skillset (keep current) —</option>
+                    <template x-for="ws in workspaces" :key="ws.slug">
+                      <option :value="ws.slug" x-text="ws.name || ws.slug"></option>
+                    </template>
+                  </select>
+                  <button class="btn btn-sm btn-ok" :disabled="busy"
+                          @click.stop="applyOverride(selected.slug, m.role, m.slug)">Apply</button>
+                </div>
+              </div>
+            </template>
+          </div>
         </div>
 
         <!-- ── BENCHMARK ───────────────────────────────────────────── -->
@@ -2870,17 +2901,27 @@
   // ── Arena section ──────────────────────────────────────────────────────────
   function arenaSection() {
     return {
-      teams:          [],
-      loading:        false,
-      busy:           false,
-      selected:       null,
-      logEntries:     [],
-      sessions:       [],
+      teams:           [],
+      loading:         false,
+      busy:            false,
+      selected:        null,
+      logEntries:      [],
+      sessions:        [],
       sessionsLoading: false,
-      _logTimer:      null,
+      workspaces:      [],
+      overrideInputs:  {},   // keyed as '{slug}:model' and '{slug}:skillset'
+      _logTimer:       null,
 
       async init() {
         await this.fetchTeams();
+        this.fetchWorkspaces();
+      },
+
+      async fetchWorkspaces() {
+        try {
+          const r = await fetch('/api/factory/workspaces');
+          if (r.ok) { const d = await r.json(); this.workspaces = d.workspaces || []; }
+        } catch {}
       },
 
       async fetchTeams() {
@@ -3000,6 +3041,33 @@
         try {
           const r = await fetch(`/api/factory/teams/${slug}/stop`, { method: 'POST' });
           if (r.ok) { await this.fetchTeams(); if (this.selected?.slug === slug) this.selected = null; }
+        } catch {}
+        this.busy = false;
+      },
+
+      async applyOverride(teamSlug, role, memberSlug) {
+        const model    = (this.overrideInputs[memberSlug + ':model']    || '').trim();
+        const skillset = (this.overrideInputs[memberSlug + ':skillset'] || '').trim();
+        if (!model && !skillset) { alert('Enter a model or select a skillset to apply.'); return; }
+        this.busy = true;
+        try {
+          const body = {};
+          if (model)    body.model    = model;
+          if (skillset) body.skillset = skillset;
+          const r = await fetch(`/api/factory/teams/${teamSlug}/members/${role}/override`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          if (r.ok) {
+            const d = await r.json();
+            // Clear the inputs for this member
+            this.overrideInputs[memberSlug + ':model']    = '';
+            this.overrideInputs[memberSlug + ':skillset'] = '';
+            alert(`Applied to ${role}: ${d.applied.join(', ')}`);
+          } else {
+            const d = await r.json().catch(() => ({}));
+            alert(d.detail || 'Override failed');
+          }
         } catch {}
         this.busy = false;
       },

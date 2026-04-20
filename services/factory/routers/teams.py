@@ -956,3 +956,105 @@ async def replay_session(slug: str, body: ReplayBody) -> dict:
     log_event("team_replay", target_type="team", target_slug=slug,
               detail=f"Replayed session '{body.session_id}' — message: {first_user[:80]}")
     return {"ok": True, "session_id": body.session_id, "message": first_user[:120], "chat_port": chat_port}
+
+
+# ── Member override ───────────────────────────────────────────────────────────
+
+class MemberOverrideBody(BaseModel):
+    model:    Optional[str] = None   # new model slug (e.g. "qwen3:4b")
+    provider: Optional[str] = None   # provider key in config.json (e.g. "local")
+    skillset: Optional[str] = None   # workspace slug to hot-swap identity + skills from
+
+
+@router.post("/{slug}/members/{role}/override")
+async def override_member(slug: str, role: str, body: MemberOverrideBody) -> dict:
+    """Hot-swap model and/or skillset for a running team member without respawning.
+
+    - model/provider → writes config.json, POSTs to member /api/model to trigger in-process reload
+    - skillset       → copies identity files + skills/ to member workspace, then triggers reload
+    Both can be combined in one call.
+    """
+    if not body.model and not body.skillset:
+        raise HTTPException(status_code=400, detail="Provide at least one of: model, skillset")
+
+    with get_conn(DB_PATH) as conn:
+        row = conn.execute("SELECT slug FROM agent_teams WHERE slug=?", (slug,)).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Team '{slug}' not found")
+
+    member_workspace = TEAMS_ROOT / slug / "members" / role
+    if not member_workspace.exists():
+        raise HTTPException(status_code=404, detail=f"Member role '{role}' not found in team '{slug}'")
+
+    # Look up the member's running chat port
+    member_slug = f"{slug}-{role}"
+    with get_conn(DB_PATH) as conn:
+        agent_row = conn.execute(
+            "SELECT ports FROM spawned_agents WHERE slug=? AND status='running'",
+            (member_slug,),
+        ).fetchone()
+    if not agent_row:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Member '{role}' is not running — spawn the team first",
+        )
+    _, chat_port = _parse_ports(agent_row[0])
+    if not chat_port:
+        raise HTTPException(status_code=500, detail="Could not determine member chat port")
+
+    applied: list[str] = []
+
+    # ── Skillset swap: overwrite identity files + skills/ on disk ─────────────
+    if body.skillset:
+        _copy_skillset(body.skillset, member_workspace)
+        applied.append(f"skillset={body.skillset}")
+
+    # ── Model swap: patch config.json ─────────────────────────────────────────
+    if body.model:
+        cfg_path = member_workspace / "config.json"
+        try:
+            cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        except Exception:
+            cfg = {}
+        cfg.setdefault("agents", {}).setdefault("defaults", {})["model"] = body.model
+        if body.provider:
+            cfg["agents"]["defaults"]["provider"] = body.provider
+        cfg_path.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+        applied.append(f"model={body.model}")
+        # Also update the DB record
+        with get_conn(DB_PATH) as conn:
+            conn.execute(
+                "UPDATE team_members SET model=? WHERE team_slug=? AND agent_slug=?",
+                (body.model, slug, member_slug),
+            )
+
+    # ── Trigger in-process reload via the member's /api/model endpoint ────────
+    # Even if we only changed skillset files, calling /api/model forces the agent
+    # to rebuild itself from disk (re-reads all identity files + config).
+    import urllib.request as _ureq
+    reload_model = body.model or json.loads(
+        (member_workspace / "config.json").read_text(encoding="utf-8")
+    ).get("agents", {}).get("defaults", {}).get("model", "")
+    reload_provider = body.provider or ""
+
+    reload_payload = json.dumps({"model": reload_model, "provider": reload_provider}).encode()
+    try:
+        req = _ureq.Request(
+            f"http://localhost:{chat_port}/api/model",
+            data=reload_payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with _ureq.urlopen(req, timeout=10) as resp:
+            reload_result = json.loads(resp.read().decode())
+            if not reload_result.get("ok"):
+                raise ValueError(reload_result)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Workspace updated but agent reload failed: {e}",
+        )
+
+    log_event("member_override", target_type="agent", target_slug=member_slug,
+              detail=f"Override applied to '{role}' in team '{slug}': {', '.join(applied)}")
+    return {"ok": True, "role": role, "slug": member_slug, "applied": applied, "chat_port": chat_port}
