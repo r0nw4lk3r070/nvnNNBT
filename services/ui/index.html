@@ -1174,10 +1174,17 @@
                             style="margin-left:.35rem;font-size:.65rem;background:var(--surface2);padding:.05rem .35rem;border-radius:8px;color:var(--muted)"
                             x-text="skills.length"></span>
               </div>
+              <div style="padding:.4rem .9rem;cursor:pointer;font-size:.75rem;white-space:nowrap;border-bottom:2px solid transparent;transition:color .1s,border-color .1s"
+                   :style="{color: activeFile==='_knowledge' ? 'var(--text)' : 'var(--muted)', borderBottomColor: activeFile==='_knowledge' ? 'var(--accent)' : 'transparent'}"
+                   @click="switchFile('_knowledge')">
+                Knowledge<span x-show="kbLibrary.length > 0"
+                               style="margin-left:.35rem;font-size:.65rem;background:var(--surface2);padding:.05rem .35rem;border-radius:8px;color:var(--muted)"
+                               x-text="kbLibrary.length"></span>
+              </div>
             </div>
 
             <!-- identity file editor -->
-            <div :style="{display: activeFile !== '_skills' ? 'flex' : 'none'}"
+            <div :style="{display: activeFile !== '_skills' && activeFile !== '_knowledge' ? 'flex' : 'none'}"
                  style="flex-direction:column;gap:.6rem;padding:1rem">
               <textarea style="width:100%;min-height:calc(100vh - 330px);background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:.7rem .9rem;color:var(--text);font-family:'Cascadia Code','Fira Code',Consolas,monospace;font-size:.75rem;resize:vertical;outline:none;transition:border-color .12s;line-height:1.6"
                         @focus="$el.style.borderColor='var(--accent)'"
@@ -1216,6 +1223,79 @@
                             @click="deleteSkill(sk.name)" :disabled="busy">Delete</button>
                   </div>
                 </template>
+              </div>
+            </div>
+
+            <!-- knowledge panel -->
+            <div x-show="activeFile === '_knowledge'"
+                 style="background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:.75rem;min-height:calc(100vh - 320px);overflow-y:auto">
+
+              <!-- inbox -->
+              <div style="margin-bottom:1rem">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.45rem">
+                  <span style="font-size:.8rem;font-weight:600;color:var(--text)">Inbox</span>
+                  <div style="display:flex;gap:.4rem;align-items:center">
+                    <label class="btn btn-ghost" style="font-size:.7rem;cursor:pointer;margin:0;padding:.2rem .55rem">
+                      + Upload
+                      <input type="file" style="display:none" multiple
+                             @change="kbUpload($event, 'workspace', active?.slug)">
+                    </label>
+                    <button class="btn btn-primary" style="font-size:.7rem"
+                            @click="kbIngest('workspace', active?.slug)"
+                            :disabled="kbBusy || kbInbox.length === 0">Ingest all</button>
+                  </div>
+                </div>
+                <div x-show="kbBusy && kbStatus" style="font-size:.72rem;color:var(--muted);margin-bottom:.3rem" x-text="kbStatus"></div>
+                <div x-show="kbInbox.length === 0 && !kbBusy" style="font-size:.75rem;color:var(--muted)">Inbox is empty. Upload files to ingest.</div>
+                <template x-for="f in kbInbox" :key="f">
+                  <div style="display:flex;align-items:center;gap:.4rem;padding:.25rem .4rem;background:var(--bg);border:1px solid var(--border);border-radius:5px;margin-bottom:.25rem;font-size:.75rem">
+                    <span style="flex:1;color:var(--muted2);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="f"></span>
+                    <span style="font-size:.65rem;color:var(--yellow);background:var(--surface2);padding:.05rem .35rem;border-radius:5px">pending</span>
+                  </div>
+                </template>
+              </div>
+
+              <!-- library -->
+              <div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.45rem">
+                  <span style="font-size:.8rem;font-weight:600;color:var(--text)">Library</span>
+                  <button class="btn btn-ghost" style="font-size:.7rem"
+                          @click="kbLoadLibrary('workspace', active?.slug)" :disabled="kbBusy">↻</button>
+                </div>
+                <div x-show="kbLibrary.length === 0 && !kbBusy" style="font-size:.75rem;color:var(--muted)">No documents ingested yet.</div>
+                <template x-for="doc in kbLibrary" :key="doc.doc">
+                  <div style="display:flex;align-items:center;gap:.4rem;padding:.25rem .4rem;background:var(--bg);border:1px solid var(--border);border-radius:5px;margin-bottom:.25rem;font-size:.75rem">
+                    <span style="flex:1;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="doc.doc"></span>
+                    <span style="font-size:.65rem;color:var(--muted);background:var(--surface2);padding:.05rem .35rem;border-radius:5px" x-text="doc.chunks + ' chunks'"></span>
+                    <button class="btn btn-ghost" style="font-size:.65rem;padding:.1rem .4rem;color:var(--red);border-color:var(--red)"
+                            @click="kbDeleteDoc('workspace', active?.slug, doc.doc)" :disabled="kbBusy">Delete</button>
+                  </div>
+                </template>
+              </div>
+
+              <!-- search -->
+              <div style="margin-top:1rem;padding-top:.75rem;border-top:1px solid var(--border)">
+                <div style="font-size:.8rem;font-weight:600;color:var(--text);margin-bottom:.45rem">Search</div>
+                <div style="display:flex;gap:.4rem">
+                  <input type="text" x-model="kbQuery"
+                         style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:.35rem .65rem;color:var(--text);font-size:.78rem;font-family:inherit;outline:none;transition:border-color .12s"
+                         placeholder="Semantic search…"
+                         @focus="$el.style.borderColor='var(--accent)'"
+                         @blur="$el.style.borderColor='var(--border)'"
+                         @keydown.enter="kbSearch('workspace', active?.slug)">
+                  <button class="btn btn-primary" style="font-size:.78rem"
+                          @click="kbSearch('workspace', active?.slug)"
+                          :disabled="kbBusy || !kbQuery.trim()">Search</button>
+                </div>
+                <div x-show="kbResults.length > 0" style="margin-top:.6rem;display:flex;flex-direction:column;gap:.4rem">
+                  <template x-for="(r, i) in kbResults" :key="i">
+                    <div style="background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:.5rem .75rem">
+                      <div style="font-size:.7rem;color:var(--muted);margin-bottom:.2rem;font-family:monospace"
+                           x-text="r.doc + ' · chunk ' + r.chunk + ' · dist ' + (r.distance||0).toFixed(4)"></div>
+                      <div style="font-size:.75rem;line-height:1.5;white-space:pre-wrap;color:var(--text2)" x-text="r.text"></div>
+                    </div>
+                  </template>
+                </div>
               </div>
             </div>
 
@@ -1795,6 +1875,69 @@
                 </div>
               </div>
             </template>
+          </div>
+
+          <!-- Team Knowledge -->
+          <div class="card" x-show="selected">
+            <div class="card-head">
+              <span>Knowledge — <strong x-text="selected?.name"></strong></span>
+              <div style="display:flex;gap:6px;align-items:center">
+                <label class="btn btn-sm" style="cursor:pointer;margin:0">
+                  + Upload
+                  <input type="file" style="display:none" multiple
+                         @change="tkUpload($event, selected?.slug)">
+                </label>
+                <button class="btn btn-sm" :disabled="tkBusy || tkInbox.length === 0"
+                        @click="tkIngest(selected?.slug)">Ingest all</button>
+                <button class="btn btn-sm" @click="tkLoad(selected?.slug)" :disabled="tkBusy">↻</button>
+              </div>
+            </div>
+            <div x-show="tkBusy && tkStatus" style="font-size:.72rem;color:var(--muted);padding:.2rem .1rem" x-text="tkStatus"></div>
+            <!-- inbox -->
+            <div x-show="tkInbox.length > 0" style="margin-bottom:.5rem">
+              <div style="font-size:.73rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.25rem">Inbox</div>
+              <template x-for="f in tkInbox" :key="f">
+                <div style="display:flex;align-items:center;gap:.4rem;padding:.22rem .4rem;background:var(--bg);border:1px solid var(--border);border-radius:5px;margin-bottom:.2rem;font-size:.73rem">
+                  <span style="flex:1;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted2)" x-text="f"></span>
+                  <span style="font-size:.62rem;color:var(--yellow);background:var(--surface2);padding:.03rem .3rem;border-radius:5px">pending</span>
+                </div>
+              </template>
+            </div>
+            <!-- library -->
+            <div>
+              <div style="font-size:.73rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.25rem">Library</div>
+              <div x-show="tkLibrary.length === 0 && !tkBusy" style="font-size:.75rem;color:var(--muted)">No documents ingested yet.</div>
+              <template x-for="doc in tkLibrary" :key="doc.doc">
+                <div style="display:flex;align-items:center;gap:.4rem;padding:.22rem .4rem;background:var(--bg);border:1px solid var(--border);border-radius:5px;margin-bottom:.2rem;font-size:.73rem">
+                  <span style="flex:1;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="doc.doc"></span>
+                  <span style="font-size:.62rem;color:var(--muted);background:var(--surface2);padding:.03rem .3rem;border-radius:5px" x-text="doc.chunks + ' chunks'"></span>
+                  <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)"
+                          @click="tkDeleteDoc(selected?.slug, doc.doc)" :disabled="tkBusy">Delete</button>
+                </div>
+              </template>
+            </div>
+            <!-- search -->
+            <div style="margin-top:.75rem;padding-top:.6rem;border-top:1px solid var(--border)">
+              <div style="display:flex;gap:.4rem">
+                <input type="text" x-model="tkQuery"
+                       style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:.3rem .6rem;color:var(--text);font-size:.75rem;font-family:inherit;outline:none;transition:border-color .12s"
+                       placeholder="Semantic search…"
+                       @focus="$el.style.borderColor='var(--accent)'"
+                       @blur="$el.style.borderColor='var(--border)'"
+                       @keydown.enter="tkSearch(selected?.slug)">
+                <button class="btn btn-sm" :disabled="tkBusy || !tkQuery.trim()"
+                        @click="tkSearch(selected?.slug)">Search</button>
+              </div>
+              <div x-show="tkResults.length > 0" style="margin-top:.5rem;display:flex;flex-direction:column;gap:.35rem">
+                <template x-for="(r, i) in tkResults" :key="i">
+                  <div style="background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:.45rem .7rem">
+                    <div style="font-size:.68rem;color:var(--muted);margin-bottom:.15rem;font-family:monospace"
+                         x-text="r.doc + ' · chunk ' + r.chunk + ' · dist ' + (r.distance||0).toFixed(4)"></div>
+                    <div style="font-size:.73rem;line-height:1.5;white-space:pre-wrap;color:var(--text2)" x-text="r.text"></div>
+                  </div>
+                </template>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -2784,6 +2927,16 @@
 
       switchFile(fn) {
         if (fn === '_skills') { this.activeFile = '_skills'; return; }
+        if (fn === '_knowledge') {
+          this.activeFile = '_knowledge';
+          this.kbResults = [];
+          this.kbQuery = '';
+          if (this.active?.slug) {
+            this.kbLoadInbox('workspace', this.active.slug);
+            this.kbLoadLibrary('workspace', this.active.slug);
+          }
+          return;
+        }
         this.fileContent = this.active?.files?.[fn] ?? '';
         this.activeFile = fn;
         this.fileSaved = false;
@@ -2895,6 +3048,85 @@
         } catch (e) { alert('Error: ' + e.message); }
         this.busy = false;
       },
+
+      // ── Knowledge base (workspace) ────────────────────────────────────────
+      kbInbox:   [],
+      kbLibrary: [],
+      kbResults: [],
+      kbQuery:   '',
+      kbBusy:    false,
+      kbStatus:  '',
+
+      async kbLoadInbox(scope, slug) {
+        if (!slug) return;
+        try {
+          const r = await fetch(`/api/factory/knowledge/${scope}/${slug}/inbox`);
+          if (r.ok) { const d = await r.json(); this.kbInbox = d.files || []; }
+        } catch {}
+      },
+
+      async kbLoadLibrary(scope, slug) {
+        if (!slug) return;
+        try {
+          const r = await fetch(`/api/factory/knowledge/${scope}/${slug}/library`);
+          if (r.ok) { const d = await r.json(); this.kbLibrary = d.docs || []; }
+        } catch {}
+      },
+
+      async kbUpload(event, scope, slug) {
+        if (!slug) return;
+        const files = Array.from(event.target.files || []);
+        if (!files.length) return;
+        this.kbBusy = true;
+        this.kbStatus = `Uploading ${files.length} file(s)…`;
+        for (const f of files) {
+          const fd = new FormData();
+          fd.append('file', f);
+          try {
+            await fetch(`/api/factory/knowledge/${scope}/${slug}/inbox`, { method: 'POST', body: fd });
+          } catch {}
+        }
+        event.target.value = '';
+        await this.kbLoadInbox(scope, slug);
+        this.kbBusy = false;
+        this.kbStatus = '';
+      },
+
+      async kbIngest(scope, slug) {
+        if (!slug) return;
+        this.kbBusy = true;
+        this.kbStatus = 'Ingesting…';
+        try {
+          const r = await fetch(`/api/factory/knowledge/${scope}/${slug}/ingest`, { method: 'POST' });
+          const d = await r.json().catch(() => ({}));
+          this.kbStatus = d.message || (r.ok ? 'Done.' : 'Failed.');
+          await this.kbLoadInbox(scope, slug);
+          await this.kbLoadLibrary(scope, slug);
+        } catch { this.kbStatus = 'Error.'; }
+        setTimeout(() => { this.kbBusy = false; this.kbStatus = ''; }, 1800);
+      },
+
+      async kbDeleteDoc(scope, slug, doc) {
+        if (!confirm(`Remove "${doc}" from the knowledge library?`)) return;
+        this.kbBusy = true;
+        try {
+          await fetch(`/api/factory/knowledge/${scope}/${slug}/library/${encodeURIComponent(doc)}`, { method: 'DELETE' });
+          await this.kbLoadLibrary(scope, slug);
+        } catch {}
+        this.kbBusy = false;
+      },
+
+      async kbSearch(scope, slug) {
+        if (!slug || !this.kbQuery.trim()) return;
+        this.kbBusy = true;
+        this.kbResults = [];
+        try {
+          const q = encodeURIComponent(this.kbQuery.trim());
+          const r = await fetch(`/api/factory/knowledge/${scope}/${slug}/search?q=${q}&n=6`);
+          if (r.ok) { const d = await r.json(); this.kbResults = d.results || []; }
+        } catch {}
+        this.kbBusy = false;
+      },
     }
   }
 
@@ -2937,8 +3169,13 @@
         this.selected = t;
         this.logEntries = [];
         this.sessions = [];
+        this.tkInbox = [];
+        this.tkLibrary = [];
+        this.tkResults = [];
+        this.tkQuery = '';
         this.fetchLog();
         this.fetchSessions();
+        this.tkLoad(t.slug);
         if (this._logTimer) clearInterval(this._logTimer);
         this._logTimer = setInterval(() => this.fetchLog(), 5000);
       },
@@ -3070,6 +3307,93 @@
           }
         } catch {}
         this.busy = false;
+      },
+
+      // ── Team knowledge ────────────────────────────────────────────────────
+      tkInbox:   [],
+      tkLibrary: [],
+      tkResults: [],
+      tkQuery:   '',
+      tkBusy:    false,
+      tkStatus:  '',
+
+      async tkLoad(slug) {
+        if (!slug) return;
+        await Promise.all([
+          this.tkLoadInbox(slug),
+          this.tkLoadLibrary(slug),
+        ]);
+      },
+
+      async tkLoadInbox(slug) {
+        if (!slug) return;
+        try {
+          const r = await fetch(`/api/factory/knowledge/team/${slug}/inbox`);
+          if (r.ok) { const d = await r.json(); this.tkInbox = d.files || []; }
+        } catch {}
+      },
+
+      async tkLoadLibrary(slug) {
+        if (!slug) return;
+        try {
+          const r = await fetch(`/api/factory/knowledge/team/${slug}/library`);
+          if (r.ok) { const d = await r.json(); this.tkLibrary = d.docs || []; }
+        } catch {}
+      },
+
+      async tkUpload(event, slug) {
+        if (!slug) return;
+        const files = Array.from(event.target.files || []);
+        if (!files.length) return;
+        this.tkBusy = true;
+        this.tkStatus = `Uploading ${files.length} file(s)…`;
+        for (const f of files) {
+          const fd = new FormData();
+          fd.append('file', f);
+          try {
+            await fetch(`/api/factory/knowledge/team/${slug}/inbox`, { method: 'POST', body: fd });
+          } catch {}
+        }
+        event.target.value = '';
+        await this.tkLoadInbox(slug);
+        this.tkBusy = false;
+        this.tkStatus = '';
+      },
+
+      async tkIngest(slug) {
+        if (!slug) return;
+        this.tkBusy = true;
+        this.tkStatus = 'Ingesting…';
+        try {
+          const r = await fetch(`/api/factory/knowledge/team/${slug}/ingest`, { method: 'POST' });
+          const d = await r.json().catch(() => ({}));
+          this.tkStatus = d.message || (r.ok ? 'Done.' : 'Failed.');
+          await this.tkLoadInbox(slug);
+          await this.tkLoadLibrary(slug);
+        } catch { this.tkStatus = 'Error.'; }
+        setTimeout(() => { this.tkBusy = false; this.tkStatus = ''; }, 1800);
+      },
+
+      async tkDeleteDoc(slug, doc) {
+        if (!confirm(`Remove "${doc}" from the team knowledge library?`)) return;
+        this.tkBusy = true;
+        try {
+          await fetch(`/api/factory/knowledge/team/${slug}/library/${encodeURIComponent(doc)}`, { method: 'DELETE' });
+          await this.tkLoadLibrary(slug);
+        } catch {}
+        this.tkBusy = false;
+      },
+
+      async tkSearch(slug) {
+        if (!slug || !this.tkQuery.trim()) return;
+        this.tkBusy = true;
+        this.tkResults = [];
+        try {
+          const q = encodeURIComponent(this.tkQuery.trim());
+          const r = await fetch(`/api/factory/knowledge/team/${slug}/search?q=${q}&n=6`);
+          if (r.ok) { const d = await r.json(); this.tkResults = d.results || []; }
+        } catch {}
+        this.tkBusy = false;
       },
     }
   }
