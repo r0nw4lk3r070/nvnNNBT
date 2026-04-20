@@ -772,3 +772,187 @@ async def delete_team(slug: str) -> dict:
     log_event("team_delete", target_type="team", target_slug=slug,
               detail=f"Team '{slug}' deleted (workspace kept)")
     return {"ok": True}
+
+
+# ── Refresh team memory ───────────────────────────────────────────────────────
+
+@router.post("/{slug}/refresh")
+async def refresh_team_memory(slug: str, scope: str = "manager") -> dict:
+    """Wipe memory and session history for the manager and/or all members.
+
+    scope=manager  — manager only (default)
+    scope=all      — manager + every member workspace
+    """
+    with get_conn(DB_PATH) as conn:
+        row = conn.execute("SELECT slug FROM agent_teams WHERE slug=?", (slug,)).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Team '{slug}' not found")
+
+    team_root = TEAMS_ROOT / slug
+
+    def _wipe_workspace(ws: Path) -> None:
+        """Reset MEMORY.md to a blank header and truncate history.jsonl."""
+        mem_dir = ws / "memory"
+        mem_dir.mkdir(exist_ok=True)
+        memory_md = mem_dir / "MEMORY.md"
+        memory_md.write_text("# Memory\n\nNo entries yet.\n", encoding="utf-8")
+        history = mem_dir / "history.jsonl"
+        if history.exists():
+            history.write_text("", encoding="utf-8")
+        sessions_dir = ws / "sessions"
+        if sessions_dir.exists():
+            for f in sessions_dir.glob("*.jsonl"):
+                f.unlink(missing_ok=True)
+
+    wiped: list[str] = []
+
+    # Always wipe manager
+    _wipe_workspace(team_root)
+    wiped.append(f"{slug}-manager")
+
+    # Also clear the shared delegation log from shared.db
+    db_path = team_root / "knowledge" / "shared.db"
+    if db_path.exists():
+        try:
+            conn = sqlite3.connect(str(db_path))
+            conn.execute("DELETE FROM log")
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
+    if scope == "all":
+        members_dir = team_root / "members"
+        if members_dir.exists():
+            for member_ws in sorted(members_dir.iterdir()):
+                if member_ws.is_dir():
+                    _wipe_workspace(member_ws)
+                    wiped.append(f"{slug}-{member_ws.name}")
+
+    log_event("team_refresh", target_type="team", target_slug=slug,
+              detail=f"Memory wiped (scope={scope}): {wiped}")
+    return {"ok": True, "wiped": wiped, "scope": scope}
+
+
+# ── List team sessions ────────────────────────────────────────────────────────
+
+@router.get("/{slug}/sessions")
+async def list_team_sessions(slug: str) -> dict:
+    """List past sessions from the manager's sessions/ directory."""
+    with get_conn(DB_PATH) as conn:
+        row = conn.execute("SELECT slug FROM agent_teams WHERE slug=?", (slug,)).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Team '{slug}' not found")
+
+    sessions_dir = TEAMS_ROOT / slug / "sessions"
+    if not sessions_dir.exists():
+        return {"sessions": []}
+
+    sessions = []
+    for f in sorted(sessions_dir.glob("*.jsonl"), reverse=True):
+        try:
+            lines = f.read_text(encoding="utf-8").strip().splitlines()
+            first_user = ""
+            turn_count = 0
+            for line in lines:
+                try:
+                    obj = json.loads(line)
+                    msgs = obj.get("messages") or []
+                    for m in msgs:
+                        if m.get("role") == "user" and not first_user:
+                            first_user = str(m.get("content", ""))[:120]
+                        if m.get("role") == "user":
+                            turn_count += 1
+                except Exception:
+                    pass
+            stat = f.stat()
+            sessions.append({
+                "id":          f.stem,
+                "file":        f.name,
+                "first_user":  first_user,
+                "turns":       turn_count,
+                "size_bytes":  stat.st_size,
+                "modified_at": int(stat.st_mtime),
+            })
+        except Exception:
+            pass
+
+    return {"sessions": sessions}
+
+
+# ── Replay a session ──────────────────────────────────────────────────────────
+
+class ReplayBody(BaseModel):
+    session_id: str
+
+@router.post("/{slug}/replay")
+async def replay_session(slug: str, body: ReplayBody) -> dict:
+    """Re-send the first user message from a past session to the running manager."""
+    with get_conn(DB_PATH) as conn:
+        row = conn.execute(
+            "SELECT orchestrator_slug FROM agent_teams WHERE slug=?", (slug,)
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Team '{slug}' not found")
+
+    # Find the session file
+    session_file = TEAMS_ROOT / slug / "sessions" / f"{body.session_id}.jsonl"
+    if not session_file.exists():
+        raise HTTPException(status_code=404, detail=f"Session '{body.session_id}' not found")
+
+    # Extract the first user message
+    first_user = None
+    for line in session_file.read_text(encoding="utf-8").splitlines():
+        try:
+            obj = json.loads(line)
+            for m in (obj.get("messages") or []):
+                if m.get("role") == "user":
+                    first_user = str(m.get("content", ""))
+                    break
+        except Exception:
+            pass
+        if first_user:
+            break
+
+    if not first_user:
+        raise HTTPException(status_code=422, detail="No user message found in session")
+
+    # Look up manager's chat port
+    manager_slug = row[0]
+    with get_conn(DB_PATH) as conn:
+        agent_row = conn.execute(
+            "SELECT ports FROM spawned_agents WHERE slug=? AND status='running'",
+            (manager_slug,),
+        ).fetchone()
+    if not agent_row:
+        raise HTTPException(status_code=409, detail="Manager is not running — spawn the team first")
+
+    _, chat_port = _parse_ports(agent_row[0])
+    if not chat_port:
+        raise HTTPException(status_code=500, detail="Could not determine manager chat port")
+
+    # Fire-and-forget POST to manager /chat — we don't stream the response here,
+    # the user watches it via the delegation log panel in the UI.
+    import urllib.request as _ureq
+    payload = json.dumps({
+        "messages": [{"role": "user", "content": first_user}]
+    }).encode()
+    try:
+        req = _ureq.Request(
+            f"http://localhost:{chat_port}/chat",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        # Open and immediately close — we just want to trigger the run.
+        # The manager streams back to whoever opened the socket; since we close
+        # immediately, the manager will still process the message.
+        conn_http = _ureq.urlopen(req, timeout=5)
+        conn_http.close()
+    except Exception:
+        # Timeout or closed connection is expected — the manager keeps running.
+        pass
+
+    log_event("team_replay", target_type="team", target_slug=slug,
+              detail=f"Replayed session '{body.session_id}' — message: {first_user[:80]}")
+    return {"ok": True, "session_id": body.session_id, "message": first_user[:120], "chat_port": chat_port}
