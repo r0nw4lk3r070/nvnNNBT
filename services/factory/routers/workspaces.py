@@ -9,13 +9,17 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
+import docker
+import docker.errors
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from routers.events import log_event
 
 # ── Config ────────────────────────────────────────────────────────────────────
-WORKSPACES_ROOT = Path(os.environ.get("WORKSPACES_ROOT", "/app/data/workspaces"))
+WORKSPACES_ROOT  = Path(os.environ.get("WORKSPACES_ROOT", "/app/data/workspaces"))
+SANDBOX_ROOT     = Path(os.environ.get("SANDBOX_ROOT", "/app/sandbox/workspaces"))
+HOST_PROJECT     = os.environ.get("HOST_PROJECT_PATH", "")
 
 _IDENTITY_FILES = ["SOUL.md", "AGENTS.md", "TOOLS.md", "HEARTBEAT.md", "USER.md"]
 _SLUG_RE        = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
@@ -304,3 +308,60 @@ async def restore_version(slug: str, body: RestoreVersionBody) -> dict:
     log_event("workspace_restore", target_type="workspace", target_slug=slug,
               detail=f"Restored to {body.tag}")
     return {"ok": True}
+
+
+# ── Promote sandbox → production ──────────────────────────────────────────────
+
+_PROMOTE_SKIP = {"sessions", "memory", ".git"}
+_PROMOTE_SKIP_FILES = {"memory/MEMORY.md", "memory/history.jsonl"}
+
+
+@router.post("/{slug}/promote")
+async def promote_workspace(slug: str) -> dict:
+    """Copy sandbox workspace → data/workspaces, restart spawned container if running."""
+    if not _SLUG_RE.match(slug):
+        raise HTTPException(status_code=400, detail="Invalid slug")
+
+    src = SANDBOX_ROOT / slug
+    if not src.exists():
+        raise HTTPException(status_code=404, detail=f"Sandbox workspace '{slug}' not found at {src}")
+
+    dst = WORKSPACES_ROOT / slug
+    dst.mkdir(parents=True, exist_ok=True)
+
+    # Copy everything except sessions, memory, .git
+    for item in src.rglob("*"):
+        rel = item.relative_to(src)
+        parts = rel.parts
+        # Skip top-level excluded dirs and their contents
+        if parts[0] in _PROMOTE_SKIP:
+            continue
+        # Skip specific files
+        if str(rel).replace("\\", "/") in _PROMOTE_SKIP_FILES:
+            continue
+        target = dst / rel
+        if item.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(item, target)
+
+    _git_commit(dst, f"promote: synced from sandbox")
+
+    # Restart spawned container if running
+    container_name = f"nvnnnbt-agent-{slug}"
+    restarted = False
+    try:
+        dc = docker.from_env()
+        container = dc.containers.get(container_name)
+        if container.status == "running":
+            container.restart()
+            restarted = True
+    except docker.errors.NotFound:
+        pass
+    except Exception:
+        pass
+
+    log_event("workspace_promote", target_type="workspace", target_slug=slug,
+              detail=f"Promoted from sandbox; container_restarted={restarted}")
+    return {"ok": True, "slug": slug, "container_restarted": restarted}

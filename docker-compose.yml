@@ -33,6 +33,7 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       DB_PATH: /app/data/factory.db
       WORKSPACES_ROOT: /app/data/workspaces
+      SANDBOX_ROOT: /app/sandbox/workspaces
       # HOST_PROJECT_PATH: absolute path to this folder on the HOST machine.
       # Required for spawning agents (bind-mounts workspace folders).
       # Example: HOST_PROJECT_PATH=E:/nvnNNBT
@@ -45,7 +46,8 @@ services:
       HOST_RAM_MB: ${HOST_RAM_MB:-0}
     volumes:
       - ./data:/app/data
-      - ./workspace/workspaces:/app/data/workspaces
+      - ./data/workspaces:/app/data/workspaces
+      - ./workspace/workspaces:/app/sandbox/workspaces:ro
       - /var/run/docker.sock:/var/run/docker.sock
     extra_hosts:
       - "host.docker.internal:host-gateway"
