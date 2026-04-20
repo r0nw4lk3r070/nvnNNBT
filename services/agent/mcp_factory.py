@@ -263,6 +263,45 @@ def tool_get_delegation_log(args: dict) -> dict:
     return _text("\n".join(lines))
 
 
+def tool_search_knowledge(args: dict) -> dict:
+    """Search the knowledge base of a workspace or team using semantic (vector) search.
+
+    Returns the top-N most relevant text chunks from ingested documents.
+    Use this to retrieve context from a team's or workspace's knowledge library
+    before answering a question or delegating a task.
+    """
+    scope = (args.get("scope") or "workspace").strip()
+    slug  = (args.get("slug") or "").strip()
+    query = (args.get("query") or "").strip()
+    n     = int(args.get("n") or 5)
+
+    if not slug or not query:
+        return _text("ERROR: slug and query are required")
+    if scope not in ("workspace", "team"):
+        return _text("ERROR: scope must be 'workspace' or 'team'")
+
+    q = urllib.parse.urlencode({"q": query, "n": n})
+    status, data = _factory_get(f"/knowledge/{scope}/{slug}/search?{q}")
+    if status != 200 or data is None:
+        detail = data.get("detail", "unknown error") if isinstance(data, dict) else str(data)
+        return _text(f"ERROR {status}: {detail}")
+
+    results = data.get("results", [])
+    message = data.get("message", "")
+    if message and not results:
+        return _text(message)
+    if not results:
+        return _text(f"No results found for '{query}' in {scope}/{slug}.")
+
+    lines = [f"Knowledge search results for '{query}' ({scope}/{slug}):"]
+    for i, r in enumerate(results, 1):
+        doc  = r.get("doc", "?")
+        text = (r.get("text") or "").strip()[:400]
+        dist = r.get("distance", 0)
+        lines.append(f"\n[{i}] {doc} (distance: {dist:.4f})\n{text}")
+    return _text("\n".join(lines))
+
+
 # ── MCP response helpers ──────────────────────────────────────────────────────
 
 def _text(content: str) -> dict:
@@ -354,6 +393,40 @@ TOOLS: dict[str, dict] = {
                     "limit": {"type": "integer", "description": "Number of recent entries to return. Defaults to 20."},
                 },
                 "required": ["slug"],
+            },
+        },
+    },
+    "search_knowledge": {
+        "fn": tool_search_knowledge,
+        "schema": {
+            "name": "search_knowledge",
+            "description": (
+                "Semantic search over a workspace's or team's ingested knowledge library. "
+                "Returns the most relevant text chunks from documents that were ingested via the factory. "
+                "Use this to retrieve reference material, prior research, brand guidelines, etc. "
+                "before answering a question or composing a response."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "scope": {
+                        "type": "string",
+                        "description": "'workspace' or 'team'. Defaults to 'workspace'.",
+                    },
+                    "slug": {
+                        "type": "string",
+                        "description": "Workspace or team slug to search in.",
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "Natural language query to search for.",
+                    },
+                    "n": {
+                        "type": "integer",
+                        "description": "Number of results to return. Defaults to 5.",
+                    },
+                },
+                "required": ["slug", "query"],
             },
         },
     },
