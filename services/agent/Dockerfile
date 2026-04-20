@@ -7,7 +7,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application source
-COPY server.py handlers.py state.py agent.py html_art.py html_lab.py html_agent.py _cloud_models.py ./
+COPY server.py handlers.py state.py agent.py html_art.py html_lab.py html_agent.py _cloud_models.py mcp_team.py ./
 
 # Workspace and skill-sets are mounted as volumes at runtime
 # /workspace  — agent identity (SOUL.md, AGENTS.md, config.json, memory/, cron/)

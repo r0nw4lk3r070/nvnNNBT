@@ -62,8 +62,8 @@ def _claim_port(band: range, used: set[int]) -> int:
     raise HTTPException(status_code=507, detail=f"No free ports in band {band.start}–{band.stop}")
 
 
-def _default_config(ollama_base: str, model: str = "qwen3:1.7b") -> dict:
-    return {
+def _default_config(ollama_base: str, model: str = "qwen3:1.7b", is_manager: bool = False) -> dict:
+    cfg: dict = {
         "agents": {
             "defaults": {
                 "workspace": "/workspace",
@@ -82,6 +82,19 @@ def _default_config(ollama_base: str, model: str = "qwen3:1.7b") -> dict:
         },
         "gateway": {"host": "0.0.0.0", "port": 6161},
     }
+    if is_manager:
+        # Bake the team MCP server into the manager's config so it can delegate
+        # to members and log to shared.db without any factory dependency at runtime.
+        cfg["tools"] = {
+            "mcpServers": {
+                "team": {
+                    "command": "python",
+                    "args": ["/app/mcp_team.py"],
+                    "env": {},
+                }
+            }
+        }
+    return cfg
 
 
 def _init_shared_db(knowledge_dir: Path) -> None:
@@ -293,64 +306,129 @@ async def create_team(body: CreateTeamBody) -> dict:
 
     # ── Manager workspace ─────────────────────────────────────────────────────
     # Build default identity content (used when no skillset is selected)
+    member_list = "\n".join(f"- **{m['role']}** (`{m['slug']}`)" for m in members_meta)
+
     soul_content = f"""# Soul
 
-I am {body.name} Manager, the orchestrator of the {body.name} team.
+I am the **{body.name} Manager** — the orchestrator of the {body.name} team.
 
-## Who I am
+## Identity
 
-I coordinate a team of specialised agents to complete complex tasks.
-I read `team.json` to know my team, delegate work via their chat endpoints,
-and synthesise results for the user.
+I do not answer questions directly. I plan, delegate, collect, and synthesise.
+Every task I receive gets broken down and assigned to the right specialist on my team.
+I am responsible for the quality of the final answer — not for producing every part myself.
 
-## What I do
+## How I work
 
-- Receive a task from the user
-- Break it into sub-tasks for each team member
-- Call each member's `/chat` endpoint with their specific instructions
-- Collect and synthesise the results
-- Return the final answer to the user
+1. **Read the team** — call `read_team` to know who is available and what each member does.
+2. **Plan** — decide which member handles which part of the task. Write the plan as a brief note using `log_entry` with action `plan`.
+3. **Delegate** — call `delegate` for each member in sequence, passing clear, specific instructions. Each call is logged automatically.
+4. **Synthesise** — combine the members' responses into a single coherent answer for the user.
+5. **Close** — call `log_entry` with action `done` and a one-line summary of the outcome.
 
-## My team
+## Rules
 
-See `team.json` for current member ports and roles.
+- Always call `read_team` before the first delegation in a session.
+- Never answer a task that belongs to a specialist without delegating first.
+- If a member returns an error, log it with action `error` and try an alternative or inform the user.
+- Keep delegations focused: one clear instruction per member call.
+- Do not expose internal tool calls or raw member responses to the user — synthesise.
 
-## Behaviour
+## Pipeline mode
 
-- Always make a plan before delegating
-- Be explicit about which member handles which part
-- Summarise what each member returned before giving the final answer
+If the user has set up a cron trigger, I will call `read_queue` to pick up the next task,
+execute the delegation plan, write output to `knowledge/library/`, then call `complete_queue`.
 """
 
-    agents_content = f"""# Team members
-
-Load `team.json` from your workspace root to discover team members and their ports.
-
-## How to delegate
-
-POST to `http://localhost:<chat_port>/chat` with:
-```json
-{{"messages": [{{"role": "user", "content": "<your instruction>"}}]}}
-```
+    agents_content = f"""# Team
 
 ## Members
-{chr(10).join(f"- **{m['role']}** ({m['slug']})" for m in members_meta)}
+{member_list}
+
+## Delegation — using the `delegate` tool
+
+Use the `delegate` tool to send a task to a member by role:
+
+- `role` — the member's role name (see list above)
+- `message` — the specific instruction for that member
+
+The tool handles the HTTP call, streams the response, and logs both sides to `knowledge/shared.db`.
+You do not need to construct HTTP requests manually.
+
+## Workflow pattern
+
+```
+read_team()                        → confirm members + roles
+log_entry(action="plan", ...)      → record your delegation plan
+delegate(role="...", message="...") → call member 1
+delegate(role="...", message="...") → call member 2  (if needed)
+log_entry(action="done", ...)      → record outcome
+→ return synthesised answer to user
+```
+
+## Pipeline pattern (cron-triggered)
+
+```
+read_queue()                           → get next pending task
+log_entry(action="start", ...)
+delegate(...)                          → execute the task
+complete_queue(id=..., result="...")   → mark done
+```
+"""
+
+    tools_content = """# Tools
+
+## MCP — team server (always available)
+
+These tools are provided by the `mcp_team` server built into this container.
+Use them for all team coordination. No manual HTTP calls needed.
+
+| Tool | What it does |
+|---|---|
+| `read_team` | Read `team.json` — returns member list with roles and chat ports |
+| `delegate` | Send a task to a member by role. Returns their full response. Logs both sides to `shared.db`. |
+| `log_entry` | Write an entry to the shared delegation log (`action`, `detail`, optional `agent`) |
+| `read_queue` | Return pending items from the task queue (pipeline/cron mode) |
+| `complete_queue` | Mark a queue item done (`id`, optional `result`) |
+| `member_status` | List all member containers with their Docker state (running / exited / etc.) |
+| `stop_member` | Hard-stop a member container by role. Use when a member is stuck or producing bad output. |
+| `start_member` | Start a previously stopped member container by role. |
+
+## Standard tools
+
+File read/write, web search, code exec — available via the standard nanobot tool set.
+Use file tools to read `knowledge/library/` and write output there.
+"""
+
+    heartbeat_content = """# Heartbeat
+
+No scheduled heartbeat by default. The manager runs on-demand.
+
+If pipeline/cron mode is active, a cron job will trigger me on a schedule.
+I will call `read_queue`, process the next item, and call `complete_queue`.
+"""
+
+    user_content = """# User
+
+The person or system that sends tasks to this team manager.
+Respond in the same language the user writes in.
+Keep responses clear and concise — the user cares about the final result, not the delegation internals.
 """
 
     _make_workspace(team_root, {
         "SOUL.md":      soul_content,
         "AGENTS.md":    agents_content,
-        "TOOLS.md":     "# Tools\n\nStandard tool set. Use file tools to read team.json.\n",
-        "HEARTBEAT.md": "# Heartbeat\n\nCoordinate. Delegate. Synthesise.\n",
-        "USER.md":      "# User\n\nThe user who spawned this team.\n",
+        "TOOLS.md":     tools_content,
+        "HEARTBEAT.md": heartbeat_content,
+        "USER.md":      user_content,
     })
 
     # Override with skillset if provided
     if body.manager_skillset:
         _copy_skillset(body.manager_skillset, team_root)
 
-    # Manager config.json
-    mgr_cfg = _default_config(ollama_base, body.manager_model)
+    # Manager config.json — is_manager=True adds the mcp_team server entry
+    mgr_cfg = _default_config(ollama_base, body.manager_model, is_manager=True)
     (team_root / "config.json").write_text(json.dumps(mgr_cfg, indent=2) + "\n", encoding="utf-8")
 
     # knowledge/ dirs + shared.db
@@ -515,6 +593,11 @@ async def spawn_team(slug: str, body: SpawnTeamBody = None) -> dict:
                 detach=True,
                 network=COMPOSE_NETWORK,
                 ports={"6161/tcp": ("127.0.0.1", chat_port)},
+                labels={
+                    "com.nvnnnbt.team_slug": slug,
+                    "com.nvnnnbt.role":      role,
+                    "com.nvnnnbt.type":      "member",
+                },
                 environment={
                     "WORKSPACE_PATH":  member_path_container,
                     "SKILLSETS_PATH":  str(WORKSPACES_ROOT),
@@ -574,18 +657,25 @@ async def spawn_team(slug: str, body: SpawnTeamBody = None) -> dict:
                 detach=True,
                 network=COMPOSE_NETWORK,
                 ports={"6161/tcp": ("127.0.0.1", mgr_port)},
+                labels={
+                    "com.nvnnnbt.team_slug": slug,
+                    "com.nvnnnbt.role":      "manager",
+                    "com.nvnnnbt.type":      "manager",
+                },
                 environment={
                     "WORKSPACE_PATH":  manager_path_container,
                     "SKILLSETS_PATH":  str(WORKSPACES_ROOT),
                     "AGENT_PORT":      "6161",
                     "AGENT_MODE":      "production",
                     "OLLAMA_BASE_URL": OLLAMA_URL,
+                    "TEAM_SLUG":       slug,
                 },
                 volumes={
                     manager_path_host: {"bind": manager_path_container, "mode": "rw"},
                     str(Path(HOST_PROJECT) / "workspace" / "workspaces"): {
                         "bind": str(WORKSPACES_ROOT), "mode": "ro",
                     },
+                    "/var/run/docker.sock": {"bind": "/var/run/docker.sock", "mode": "rw"},
                 },
                 restart_policy={"Name": "unless-stopped"},
             )
