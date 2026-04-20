@@ -84,6 +84,7 @@ async def list_agents() -> dict:
             "ports":         r[2],
             "gateway_port":  gateway_port,
             "chat_port":     chat_port,
+            "port":          chat_port,   # alias used by UI
             "model":         r[3],
             "status":        r[4],
             "session_type":  r[5],
@@ -133,7 +134,7 @@ async def spawn_agent(body: SpawnBody) -> dict:
     ws_path_container = f"{workspaces_root}/{body.slug}"
     if not Path(ws_path_container).exists():
         raise HTTPException(status_code=404, detail=f"Workspace '{body.slug}' not found")
-    ws_path_host = str(Path(HOST_PROJECT) / "workspace" / "workspaces" / body.slug)
+    ws_path_host = str(Path(HOST_PROJECT) / "data" / "workspaces" / body.slug)
 
     # Check not already running
     with get_conn(DB_PATH) as conn:
@@ -170,7 +171,7 @@ async def spawn_agent(body: SpawnBody) -> dict:
             },
             volumes={
                 ws_path_host: {"bind": ws_path_container, "mode": "rw"},
-                str(Path(HOST_PROJECT) / "workspace" / "workspaces"): {
+                str(Path(HOST_PROJECT) / "data" / "workspaces"): {
                     "bind": "/app/data/workspaces", "mode": "ro",
                 },
             },
@@ -193,7 +194,7 @@ async def spawn_agent(body: SpawnBody) -> dict:
     log_event("agent_spawn", target_type="agent", target_slug=body.slug,
               detail=f"Spawned '{body.slug}' on chat_port={chat_port}")
     return {"ok": True, "slug": body.slug, "container": container_name,
-            "chat_port": chat_port}
+            "chat_port": chat_port, "port": chat_port}
 
 
 # ── Stop agent ────────────────────────────────────────────────────────────────
