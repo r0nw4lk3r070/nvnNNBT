@@ -1,6 +1,6 @@
 # nvnNNBT — Agent Factory
 
-**Version:** 0.2.0 · Phase 1 complete → Phase 2 next  
+**Version:** 0.3.0 · Phase 2 complete · Phase 3 in progress  
 Build, test, and deploy AI agents and agent teams. One application, Docker-first.
 
 ---
@@ -10,8 +10,11 @@ Build, test, and deploy AI agents and agent teams. One application, Docker-first
 | Service | Port | What |
 |---|---|---|
 | `ui` | 3000 | nginx — SPA entry point, proxies to factory + agent |
-| `factory` | 4000 | FastAPI — workspace CRUD, sandbox, spawn, events |
+| `factory` | 4000 | FastAPI — workspace CRUD, sandbox, spawn, teams, benchmark, events |
 | `agent` | 6161 | nanobot-ai — Art (persistent top-level agent) |
+| `chrome` | 9222 | Headless Chromium — CDP endpoint for browser harness |
+
+Spawned solo agents use ports **4330–4399** (chat). Team members use **4400–4499**, team managers **4500–4549**.
 
 ---
 
@@ -21,13 +24,16 @@ Build, test, and deploy AI agents and agent teams. One application, Docker-first
 
 - Docker Desktop
 - Ollama running on the host (`localhost:11434`) — or see [Bundled Ollama](#bundled-ollama)
-- Optional: xAI API key for Grok models
+- Optional: cloud API keys (xAI Grok, OpenAI, etc.)
 
 ### Configure
 
 ```bash
 cp .env.example .env
-# Add GROK_API_KEY if using xAI models (optional)
+# Required for agent/team spawning:
+HOST_PROJECT_PATH=E:/nvnNNBT   # absolute path to this folder on the host
+# Optional provider keys:
+GROK_API_KEY=...
 ```
 
 ### Start
@@ -44,25 +50,31 @@ http://localhost:3000
 
 ## What's inside
 
-**Art** — top-level agent. Always accessible via the right panel. Ask anything, get help building skill-sets, research, delegate. Supports Ollama local/cloud models and xAI Grok.
+The factory UI is a VS Code–style single-page app with sections in the activity bar:
 
-**Lab** — workspace editor and sandbox. Create or edit a skill-set (SOUL, AGENTS, TOOLS, HEARTBEAT, USER, skills). Load it into the sandbox, pick a model in the tab, chat with the scoped agent, iterate.
-
-**Overview** — system health (factory, agent, Ollama), CPU/RAM, recent activity feed.
+| Section | What |
+|---|---|
+| **Overview** | System health (factory, agent, providers), CPU/RAM, recent event feed |
+| **Art Office** | Top-level agent — persistent chat, streaming, tool use, right-panel settings |
+| **Lab** | Workspace editor — write SOUL, AGENTS, TOOLS, HEARTBEAT, USER, skills. Open any workspace in the sandbox to chat with the scoped agent and iterate. |
+| **Agents** | Solo agent spawn — slug, display name, model → own Docker container, own workspace, own chat UI |
+| **Teams** | Multi-agent teams — create with skillset + model picker per member and manager, shared knowledge base (`shared.db`), spawn/stop/delete |
+| **Arena** | Test teams before going live — spawn in test mode, interact with the manager, observe delegation |
+| **Benchmark** | Tag workspace versions, define task sets, run LLM-as-judge evals, compare across versions and models |
+| **DevOps / Settings** | Provider configuration — add/remove LLM providers, discover models, set API keys |
 
 ---
 
 ## LLM providers
 
-Configured in `workspace/config.json`. Three provider profiles ship by default:
+Providers are configured in the **Settings** section of the UI and stored in `workspace/config.json`. Any OpenAI-compatible endpoint works. Defaults:
 
 | Profile | Endpoint | Key |
 |---|---|---|
-| `local` | `http://host.docker.internal:11434/v1` | no |
-| `ollamaCloud` | `http://host.docker.internal:11434/v1` | no |
-| `xai` | `https://api.x.ai/v1` | `GROK_API_KEY` env var |
+| `local` | `http://host.docker.internal:11434/v1` | — |
+| `xai` | `https://api.x.ai/v1` | `GROK_API_KEY` |
 
-All model switching happens in the UI — Art panel header or the sandbox tab's model picker. Changes persist to `workspace/config.json`.
+Add more (OpenAI, Anthropic via proxy, LM Studio, etc.) directly in the UI. Model switching is available in every section — Art panel, sandbox tab, team create form, and benchmark runs.
 
 ---
 
@@ -86,9 +98,15 @@ OLLAMA_BASE_URL=http://ollama:11434
 
 | Variable | Default | Description |
 |---|---|---|
-| `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | Ollama endpoint for the agent |
+| `HOST_PROJECT_PATH` | *(must set)* | Absolute host path to this folder — required for agent/team spawning |
+| `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | Ollama endpoint |
 | `GROK_API_KEY` | *(empty)* | xAI key — leave empty if not using Grok |
-| `HOST_PROJECT_PATH` | *(must set)* | Absolute host path to this folder — needed for agent spawning in Phase 2 |
+| `FACTORY_TOKEN` | *(empty)* | Optional bearer token for factory API auth |
+| `HOST_RAM_MB` | `0` | Physical host RAM in MB — set for accurate dashboard memory display |
+| `UI_PORT` | `3000` | Host port for the UI |
+| `FACTORY_PORT` | `4000` | Host port for the factory API |
+| `AGENT_PORT` | `6161` | Host port for the Art agent |
+| `CHROME_PORT` | `9222` | Host port for headless Chromium CDP |
 
 ---
 
@@ -99,23 +117,32 @@ nvnNNBT/
 ├── docker-compose.yml
 ├── .env
 ├── services/
-│   ├── agent/          # nanobot-ai — Art agent (Python 3.12, aiohttp)
-│   ├── factory/        # Agent Factory backend (Python 3.11, FastAPI)
-│   └── ui/             # SPA + nginx reverse proxy
-├── workspace/          # Art's workspace — mounted as /workspace in agent
-│   ├── config.json     # Model, provider, and agent config
-│   ├── SOUL.md
-│   ├── AGENTS.md
-│   ├── USER.md
-│   ├── TOOLS.md
-│   ├── HEARTBEAT.md
-│   └── memory/
-└── data/
-    └── workspaces/     # Skill-sets — mounted into factory + agent
-        ├── _template/
-        ├── call-centre/
-        ├── business-toolkit/
-        └── ...
+│   ├── agent/              # nanobot-ai — Art agent (Python 3.12, aiohttp)
+│   ├── factory/            # Agent Factory backend (Python 3.12, FastAPI)
+│   │   ├── main.py
+│   │   ├── database.py
+│   │   └── routers/
+│   │       ├── agents.py       # solo agent spawn/stop/delete
+│   │       ├── teams.py        # team create/spawn/stop/delete
+│   │       ├── workspaces.py   # skill-set CRUD, file editor, git versioning
+│   │       ├── sandbox.py      # ephemeral sandbox sessions
+│   │       ├── benchmark.py    # task sets, LLM-as-judge runs
+│   │       ├── system.py       # health, CPU/RAM, provider probes
+│   │       └── events.py       # activity log
+│   └── ui/                 # SPA + nginx reverse proxy
+├── workspace/              # Art's workspace — mounted as /workspace in agent
+│   ├── config.json         # Model, provider, and agent config
+│   ├── SOUL.md / AGENTS.md / TOOLS.md / HEARTBEAT.md / USER.md
+│   ├── memory/
+│   └── workspaces/         # Skill-sets managed via Lab
+│       ├── _template/
+│       └── ...
+├── data/
+│   ├── factory.db          # SQLite — agent registry, teams, benchmark runs
+│   └── workspaces/         # Workspaces for spawned agents and teams
+│       └── teams/          # Team roots — manager + members/ + knowledge/
+└── skill-sets/             # Bundled skill-set templates
+    └── _template/
 ```
 
 ---
@@ -123,9 +150,8 @@ nvnNNBT/
 ## Roadmap
 
 - **Phase 1** — Art + Lab in Docker, factory service, SPA shell ✅
-- **Phase 2** — Workspace spawn (solo agents as containers), Lab identity editor, Agents section
-- **Phase 3** — Teams + Arena (multi-agent sessions)
-- **Phase 4** — Version control + Benchmark (git tags, LLM-as-judge evals)
-- **Phase 5** — Export (portable agent bundles)
+- **Phase 2** — Solo agent spawn, standalone agent UI, Lab editor + sandbox, workspace CRUD ✅
+- **Phase 3** — Teams (create with skillset/model picker, spawn, shared knowledge) 🔄 · Arena · Benchmark
+- **Phase 4** — Export (portable agent bundles)
 
-See [docs/factory.md](docs/factory.md) for the full design document.
+See [docs/factory.md](docs/factory.md) for the full architecture document.
