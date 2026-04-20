@@ -1722,7 +1722,15 @@
           <div class="card" x-show="selected">
             <div class="card-head">
               <span>Delegation log — <strong x-text="selected?.name"></strong></span>
-              <button class="btn btn-sm" @click="fetchLog()">↻</button>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-sm" @click="fetchLog()">↻</button>
+                <button class="btn btn-sm btn-warn" :disabled="busy"
+                        @click="refreshMemory(selected.slug, 'manager')"
+                        title="Wipe manager memory + session history">↺ Refresh</button>
+                <button class="btn btn-sm" :disabled="busy"
+                        @click="refreshMemory(selected.slug, 'all')"
+                        title="Wipe manager + all member memory">↺ Refresh all</button>
+              </div>
             </div>
             <div x-show="logEntries.length === 0" class="muted">No log entries yet. Send a message to the manager to start.</div>
             <div class="log-trace" x-show="logEntries.length > 0">
@@ -1735,6 +1743,27 @@
                 </div>
               </template>
             </div>
+          </div>
+
+          <!-- Session replay -->
+          <div class="card" x-show="selected">
+            <div class="card-head">
+              <span>Sessions — <strong x-text="selected?.name"></strong></span>
+              <button class="btn btn-sm" @click="fetchSessions()">↻</button>
+            </div>
+            <div x-show="sessionsLoading" class="muted">Loading…</div>
+            <div x-show="!sessionsLoading && sessions.length === 0" class="muted">No past sessions yet.</div>
+            <template x-for="s in sessions" :key="s.id">
+              <div class="agent-row">
+                <div class="agent-info">
+                  <span class="agent-name" x-text="s.first_user || '(no message)'" style="font-size:12px;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+                  <span class="agent-slug" x-text="s.turns + ' turns · ' + new Date(s.modified_at * 1000).toLocaleDateString()"></span>
+                </div>
+                <div class="agent-actions">
+                  <button class="btn btn-sm" :disabled="busy" @click.stop="replaySession(selected.slug, s.id)">▶ Replay</button>
+                </div>
+              </div>
+            </template>
           </div>
         </div>
 
@@ -2841,12 +2870,14 @@
   // ── Arena section ──────────────────────────────────────────────────────────
   function arenaSection() {
     return {
-      teams:      [],
-      loading:    false,
-      busy:       false,
-      selected:   null,
-      logEntries: [],
-      _logTimer:  null,
+      teams:          [],
+      loading:        false,
+      busy:           false,
+      selected:       null,
+      logEntries:     [],
+      sessions:       [],
+      sessionsLoading: false,
+      _logTimer:      null,
 
       async init() {
         await this.fetchTeams();
@@ -2864,9 +2895,58 @@
       selectTeam(t) {
         this.selected = t;
         this.logEntries = [];
+        this.sessions = [];
         this.fetchLog();
+        this.fetchSessions();
         if (this._logTimer) clearInterval(this._logTimer);
         this._logTimer = setInterval(() => this.fetchLog(), 5000);
+      },
+
+      async fetchSessions() {
+        if (!this.selected) return;
+        this.sessionsLoading = true;
+        try {
+          const r = await fetch(`/api/factory/teams/${this.selected.slug}/sessions`);
+          if (r.ok) { const d = await r.json(); this.sessions = d.sessions || []; }
+        } catch {}
+        this.sessionsLoading = false;
+      },
+
+      async refreshMemory(slug, scope) {
+        const label = scope === 'all' ? 'manager + all members' : 'manager only';
+        if (!confirm(`Wipe memory and session history for ${label}?\nThis cannot be undone.`)) return;
+        this.busy = true;
+        try {
+          const r = await fetch(`/api/factory/teams/${slug}/refresh?scope=${scope}`, { method: 'POST' });
+          if (r.ok) {
+            this.logEntries = [];
+            this.sessions = [];
+            await this.fetchLog();
+            await this.fetchSessions();
+          } else {
+            const d = await r.json().catch(() => ({}));
+            alert(d.detail || 'Refresh failed');
+          }
+        } catch {}
+        this.busy = false;
+      },
+
+      async replaySession(slug, sessionId) {
+        if (!confirm('Re-send the original message from this session to the running manager?')) return;
+        this.busy = true;
+        try {
+          const r = await fetch(`/api/factory/teams/${slug}/replay`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId }),
+          });
+          if (r.ok) {
+            await this.fetchSessions();
+          } else {
+            const d = await r.json().catch(() => ({}));
+            alert(d.detail || 'Replay failed');
+          }
+        } catch {}
+        this.busy = false;
       },
 
       async fetchLog() {
