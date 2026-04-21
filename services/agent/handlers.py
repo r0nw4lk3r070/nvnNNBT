@@ -283,27 +283,51 @@ async def handle_models(_: web.Request) -> web.Response:
 
         fetched: list[dict] = []
         if api_base and not static:
-            # Only do a live fetch when the provider has no curated static list.
-            # Providers with a static list (e.g. ollamaCloud, xAI) use it as-is.
-            try:
-                headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-                async with aiohttp.ClientSession() as s:
-                    async with s.get(
-                        f"{api_base}/models",
-                        headers=headers,
-                        timeout=aiohttp.ClientTimeout(total=5),
-                    ) as r:
-                        data = await r.json()
-                items = data.get("data") or data.get("models", [])
-                cloud_provider = "cloud" in pname.lower()
-                fetched = [
-                    {"name": m.get("id") or m.get("name"), "source": pname}
-                    for m in items
-                    if (m.get("id") or m.get("name"))
-                    and ((m.get("id") or m.get("name") or "").endswith(":cloud")) == cloud_provider
-                ]
-            except Exception as e:
-                logger.warning("provider '{}' model fetch failed: {}", pname, e)
+            # For ollamaCloud providers: fetch from the Ollama public cloud catalog
+            # instead of the local /v1/models endpoint (which only shows pulled models).
+            # ollama.com/api/tags?c=cloud returns all cloud-available models.
+            # Tags are in base form (e.g. "ministral-3:14b") — append "-cloud" if needed.
+            if "cloud" in pname.lower():
+                try:
+                    async with aiohttp.ClientSession() as s:
+                        async with s.get(
+                            "https://ollama.com/api/tags?c=cloud",
+                            timeout=aiohttp.ClientTimeout(total=8),
+                        ) as r:
+                            data = await r.json()
+                    items = data.get("data") or data.get("models", [])
+                    fetched = []
+                    for m in items:
+                        name = m.get("id") or m.get("name") or ""
+                        if not name:
+                            continue
+                        # Append cloud suffix if not already cloud-tagged.
+                        # Models with an existing tag (colon): append -cloud to the tag.
+                        # Models without a tag: append :cloud as the tag.
+                        if "cloud" not in name.lower():
+                            name = f"{name}-cloud" if ":" in name else f"{name}:cloud"
+                        fetched.append({"name": name, "source": pname})
+                except Exception as e:
+                    logger.warning("ollamaCloud catalog fetch failed: {}", e)
+            else:
+                try:
+                    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+                    async with aiohttp.ClientSession() as s:
+                        async with s.get(
+                            f"{api_base}/models",
+                            headers=headers,
+                            timeout=aiohttp.ClientTimeout(total=5),
+                        ) as r:
+                            data = await r.json()
+                    items = data.get("data") or data.get("models", [])
+                    fetched = [
+                        {"name": m.get("id") or m.get("name"), "source": pname}
+                        for m in items
+                        if (m.get("id") or m.get("name"))
+                        and "cloud" not in (m.get("id") or m.get("name") or "").lower()
+                    ]
+                except Exception as e:
+                    logger.warning("provider '{}' model fetch failed: {}", pname, e)
 
         model_list = fetched if fetched else [{"name": m, "source": pname} for m in static]
         providers.append({"name": pname, "label": label, "models": model_list})
@@ -886,6 +910,32 @@ async def handle_provider_discover(request: web.Request) -> web.Response:
 
     if not api_base:
         return web.Response(status=400, text="provider has no apiBase configured")
+
+    # For ollamaCloud providers: discover from the Ollama public cloud catalog
+    if "cloud" in name.lower():
+        try:
+            async with aiohttp.ClientSession() as s:
+                async with s.get(
+                    "https://ollama.com/api/tags?c=cloud",
+                    timeout=aiohttp.ClientTimeout(total=8),
+                ) as r:
+                    if r.status >= 400:
+                        return web.Response(status=502, text=f"ollama.com catalog returned HTTP {r.status}")
+                    data = await r.json()
+        except asyncio.TimeoutError:
+            return web.Response(status=504, text="ollama.com catalog timed out")
+        except Exception as e:
+            return web.Response(status=502, text=f"could not reach ollama.com: {e}")
+        items  = data.get("data") or data.get("models", [])
+        models = []
+        for m in items:
+            n = m.get("id") or m.get("name") or ""
+            if not n:
+                continue
+            if "cloud" not in n.lower():
+                n = f"{n}-cloud"
+            models.append(n)
+        return web.json_response({"models": models, "count": len(models)})
 
     try:
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
