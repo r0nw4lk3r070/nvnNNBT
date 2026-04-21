@@ -1,4 +1,4 @@
-# nvnNNBT — Agent Factory
+![alt text](image.png)# nvnNNBT — Agent Factory
 
 **Status:** Battle plan · April 2026  
 **Vision:** One application. From idea → skilled agent or team → tested → deployed.
@@ -779,14 +779,18 @@ Goal: create a workspace in the UI, test it in Lab sandbox, spawn as solo agent.
 5. Lab UI: sandbox test panel (load workspace → chat → promote button)
 6. Agents UI: list, start/stop/delete, status badges, per-agent chat proxy
 
-### Phase 3 — Teams + Arena
+### Phase 3 — Teams + Arena ✅ COMPLETE (April 2026)
 
 Goal: build and test multi-agent teams.
 
-1. Port `teams.py` from ron dashboard → factory router
-2. Port `arena.py` from ron dashboard → factory router (all three modes)
-3. Teams UI: team builder, member list, knowledge center view
-4. Arena UI: session runner, turn-by-turn log, stop button, session replay (turn log already stored in `arena_sessions` — replay is a UI read of existing data)
+- ✅ `teams.py` factory router — create, spawn, stop, delete, refresh, mode switch
+- ✅ `knowledge.py` factory router — ingest, library, delete, search, inbox upload
+- ✅ Teams UI — team list, member list with per-member model/skillset, spawn test/prod, stop, promote
+- ✅ Arena UI — spawn in test mode, interact with manager, observe delegation turn by turn
+- ✅ Delegation log panel — reads from team `shared.db` log table; manager writes via `log_entry` tool
+- ✅ Session replay — UI lists past sessions, `▶ Replay` re-sends first user message to running manager
+- ✅ Member model override — hot-swap model and/or skillset per member without respawning
+- ✅ Team knowledge base — shared `vectors.db` per team, ingest via UI, `search_knowledge` MCP tool
 
 ### Phase 4 — Version Control + Benchmark
 

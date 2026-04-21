@@ -1,6 +1,6 @@
 # nvnNNBT — Agent Factory
 
-**Version:** 0.3.0 · Phase 2 complete · Phase 3 in progress  
+**Version:** 0.4.0 · Phase 3 complete · Phase 4 next  
 Build, test, and deploy AI agents and agent teams. One application, Docker-first.
 
 ---
@@ -151,7 +151,7 @@ nvnNNBT/
 
 - **Phase 1** — Art + Lab in Docker, factory service, SPA shell ✅
 - **Phase 2** — Solo agent spawn, standalone agent UI, Lab editor + sandbox, workspace CRUD ✅
-- **Phase 3** — Teams (create with skillset/model picker, spawn, shared knowledge) 🔄 · Arena · Benchmark
+- **Phase 3** — Teams, Arena, shared knowledge base, delegation log, session replay, member override ✅
 - **Phase 4** — Export (portable agent bundles)
 
 See [docs/factory.md](docs/factory.md) for the full architecture document.

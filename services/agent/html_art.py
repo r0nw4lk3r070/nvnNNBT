@@ -50,8 +50,8 @@ _SHARED_CSS = """
   .thinking span:nth-child(3) { animation-delay: .4s; }
   @keyframes bounce { 0%,80%,100% { transform: scale(.7); opacity:.4; } 40% { transform: scale(1.1); opacity:1; } }
   /* Model panel */
-  .side-panel { display: none; position: fixed; top: 0; right: 0; width: 340px; height: 100dvh; background: var(--surface); border-left: 1px solid var(--border); flex-direction: column; z-index: 100; }
-  .side-panel.open { display: flex; }
+  .side-panel { display: flex; position: fixed; top: 0; bottom: 0; right: 0; width: 340px; background: var(--surface); border-left: 1px solid var(--border); flex-direction: column; z-index: 100; overflow: hidden; transform: translateX(100%); transition: transform .25s cubic-bezier(.4,0,.2,1); }
+  .side-panel.open { transform: translateX(0); }
   .side-panel > header { justify-content: space-between; }
   .side-panel > header h2 { font-size: 1rem; color: var(--accent2); }
   .close-btn { background: none; border: none; color: var(--muted); font-size: 1.3rem; cursor: pointer; }
@@ -59,9 +59,10 @@ _SHARED_CSS = """
   .tab-row { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
   .tab { flex: 1; padding: 10px; text-align: center; font-size: .85rem; cursor: pointer; color: var(--muted); border: none; background: none; }
   .tab.active { color: var(--accent2); border-bottom: 2px solid var(--accent); }
-  .panel-search { margin: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 7px 12px; font-size: .85rem; outline: none; width: calc(100% - 20px); }
+  .panel-search { flex-shrink: 0; margin: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 7px 12px; font-size: .85rem; outline: none; width: calc(100% - 20px); }
   .panel-search:focus { border-color: var(--accent); }
-  .panel-list { flex: 1; overflow-y: auto; padding: 0 10px 10px; }
+  .panel-list-wrap { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+  .panel-list { position: absolute; inset: 0; overflow-y: auto; padding: 0 10px 10px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
   .model-item { display: flex; align-items: center; padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: .85rem; gap: 8px; }
   .model-item:hover { background: var(--bg); }
   .model-item.selected { background: color-mix(in srgb, var(--accent) 15%, transparent); }
@@ -70,7 +71,7 @@ _SHARED_CSS = """
   .badge.cloud { border-color: var(--accent); color: var(--accent2); }
   .badge.grok { border-color: #f0a030; color: #f0a030; }
   .badge.grok-image { border-color: #d35fd3; color: #d35fd3; }
-  .panel-apply { margin: 10px; background: var(--accent); border: none; border-radius: 7px; color: #fff; padding: 10px; cursor: pointer; font-size: .9rem; font-weight: 600; }
+  .panel-apply { flex-shrink: 0; margin: 10px; background: var(--accent); border: none; border-radius: 7px; color: #fff; padding: 10px; cursor: pointer; font-size: .9rem; font-weight: 600; }
   .panel-apply:disabled { opacity: .4; }
   /* Code */
   pre { background: #111; border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; overflow-x: auto; margin: 6px 0; white-space: pre; }
@@ -168,7 +169,7 @@ async function addCronJob() {
   .mcp-server-cmd { color: var(--muted); font-family: monospace; font-size: .75rem; flex: 2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mcp-del-btn { background: none; border: 1px solid var(--border); border-radius: 5px; color: var(--muted); cursor: pointer; padding: 3px 8px; font-size: .75rem; flex-shrink: 0; }
   .mcp-del-btn:hover { border-color: var(--err); color: var(--err); }
-  .add-form { padding: 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+  .add-form { flex-shrink: 0; padding: 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
   .add-form input, .add-form select, .add-form textarea { background: var(--bg); border: 1px solid var(--border); border-radius: 5px; color: var(--text); padding: 6px 10px; font-size: .82rem; font-family: inherit; outline: none; }
   .add-form input:focus, .add-form textarea:focus { border-color: var(--accent); }
   .add-form textarea { resize: vertical; min-height: 50px; }
@@ -265,8 +266,8 @@ def _build_art_html() -> str:
     <button class="close-btn" id="close-panel">&times;</button>
   </header>
   <div class="tab-row" id="model-tabs"></div>
+  <div class="panel-list-wrap"><div class="panel-list" id="model-list"></div></div>
   <input class="panel-search" id="model-search" type="text" placeholder="Search\u2026">
-  <div class="panel-list" id="model-list"></div>
   <button class="panel-apply" id="apply-btn" disabled>Apply</button>
 </div>
 
@@ -276,7 +277,7 @@ def _build_art_html() -> str:
     <h2>Scheduled Jobs</h2>
     <button class="close-btn" id="close-cron">&times;</button>
   </header>
-  <div class="panel-list" id="cron-list" style="padding:10px"></div>
+  <div class="panel-list-wrap"><div class="panel-list" id="cron-list" style="padding:10px"></div></div>
   <div class="add-form" id="cron-add-form">
     <div style="font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px">Add job</div>
     <input id="cron-name" placeholder="Job name" />
@@ -296,7 +297,7 @@ def _build_art_html() -> str:
     <h2>MCP Servers</h2>
     <button class="close-btn" id="close-mcp">&times;</button>
   </header>
-  <div class="panel-list" id="mcp-list" style="padding:10px"></div>
+  <div class="panel-list-wrap"><div class="panel-list" id="mcp-list" style="padding:10px"></div></div>
   <div class="add-form" id="mcp-add-form">
     <div style="font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:4px">Add server</div>
     <input id="mcp-name" placeholder="name (e.g. filesystem)" />
@@ -587,6 +588,7 @@ function updateSaveLabel() {{
 $('model-btn').onclick = () => {{ $('model-panel').classList.add('open'); renderTabs(); renderModelList(); }};
 $('close-panel').onclick = () => $('model-panel').classList.remove('open');
 $('model-search').addEventListener('input', renderModelList);
+$('model-search').addEventListener('keydown', e => {{ if (e.key === 'Enter' && !$('apply-btn').disabled) $('apply-btn').click(); }});
 function renderModelList() {{
   const q = $('model-search').value.toLowerCase();
   const el = $('model-list'); el.innerHTML = '';

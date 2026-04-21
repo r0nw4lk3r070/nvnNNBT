@@ -14,9 +14,4 @@ The spec describes a cron-driven mode where the manager polls knowledge/queue on
 
 
 the daily stack:
-
-GitHub
-@github
-·
-1h
 GitHub Pages is the easiest way to host your static sites for free.

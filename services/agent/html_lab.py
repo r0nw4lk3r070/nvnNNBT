@@ -158,8 +158,8 @@ def _build_lab_html() -> str:
     <button class="tab active" data-tab="local">Local</button>
     <button class="tab" data-tab="cloud">Cloud</button>
   </div>
+  <div class="panel-list-wrap"><div class="panel-list" id="model-list"></div></div>
   <input class="panel-search" id="model-search" type="text" placeholder="Search\u2026">
-  <div class="panel-list" id="model-list"></div>
   <button class="panel-apply" id="apply-model-btn" disabled>Select</button>
 </div>
 
@@ -404,6 +404,7 @@ document.querySelectorAll('.tab').forEach(t=>{{t.onclick=()=>{{
   panelTab=t.dataset.tab; $('model-search').value=''; renderModelPanel();
 }}}});
 $('model-search').addEventListener('input',renderModelPanel);
+$('model-search').addEventListener('keydown',e=>{{if(e.key==='Enter'&&!$('apply-model-btn').disabled)$('apply-model-btn').click();}});
 function renderModelPanel() {{
   const q=$('model-search').value.toLowerCase(); const el=$('model-list'); el.innerHTML='';
   for(const m of allModels[panelTab].filter(m=>m.name.includes(q))){{
