@@ -49,7 +49,8 @@ async def system_stats() -> dict:
     ram: dict | None = None
     try:
         import psutil  # soft dependency
-        cpu_pct = psutil.cpu_percent(interval=None)
+        psutil.cpu_percent(interval=None)  # warm-up: discard the always-0 first reading
+        cpu_pct = psutil.cpu_percent(interval=0.1)
         mem = psutil.virtual_memory()
         ram = {
             "used_mb":  mem.used  // (1024 * 1024),
