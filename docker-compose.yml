@@ -8,7 +8,7 @@ services:
     container_name: nvnnnbt-ui
     restart: unless-stopped
     ports:
-      - "${UI_PORT:-3000}:80"
+      - "${UI_PORT:-7445}:80"
     depends_on:
       factory:
         condition: service_healthy
@@ -85,7 +85,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 15s
+      start_period: 150s
 
   # ── Chrome: headless Chromium for browser-harness (CDP) ────────────────
   # Exposes the Chrome DevTools Protocol on port 9222.
