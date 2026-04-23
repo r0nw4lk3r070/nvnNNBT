@@ -155,3 +155,9 @@ nvnNNBT/
 - **Phase 4** — Export (portable agent bundles)
 
 See [docs/factory.md](docs/factory.md) for the full architecture document.
+
+---
+
+## Maintenance
+
+- [docs/nanobot-upgrade.md](docs/nanobot-upgrade.md) — How to upgrade `nanobot-ai` (compatibility checklist, build steps, rollback, propagation to downstream stacks)
