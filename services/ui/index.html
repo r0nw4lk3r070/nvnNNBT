@@ -855,7 +855,7 @@
         <!-- ── OVERVIEW ──────────────────────────────────────────── -->
         <div x-show="$store.f.activeTab?.type === 'overview'"
              x-data="overviewSection()"
-             style="display:flex;flex-direction:column;padding:1rem 1.25rem;gap:.6rem;height:calc(100vh - var(--tabbar-h) - var(--statusbar-h));overflow:hidden">
+             style="display:flex;flex-direction:column;padding:1rem 1.25rem;gap:.6rem;height:calc(100vh - var(--tabbar-h) - var(--statusbar-h));overflow:hidden;box-sizing:border-box">
 
           <!-- Compact status + nav bar -->
           <div style="display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;flex-shrink:0">
