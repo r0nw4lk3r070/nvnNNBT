@@ -5,7 +5,8 @@ services:
     build:
       context: ./services/ui
       dockerfile: Dockerfile
-    container_name: nvnnnbt-ui
+    image: nvn-neven-ui:latest
+    container_name: nvn-neven-ui
     restart: unless-stopped
     ports:
       - "${UI_PORT:-7445}:80"
@@ -24,7 +25,8 @@ services:
     build:
       context: ./services/factory
       dockerfile: Dockerfile
-    container_name: nvnnnbt-factory
+    image: nvn-neven-factory:latest
+    container_name: nvn-neven-factory
     restart: unless-stopped
     ports:
       - "${FACTORY_PORT:-4000}:4000"
@@ -38,8 +40,8 @@ services:
       # Required for spawning agents (bind-mounts workspace folders).
       # Example: HOST_PROJECT_PATH=E:/nvnNNBT
       HOST_PROJECT_PATH: ${HOST_PROJECT_PATH:-}
-      AGENT_IMAGE: nvnnnbt-agent:latest
-      COMPOSE_NETWORK: nvnnnbt-net
+      AGENT_IMAGE: nvn-neven-agent:latest
+      COMPOSE_NETWORK: nvn-neven-net
       FACTORY_TOKEN: ${FACTORY_TOKEN:-}
       # Port bands for spawned agents. Offset per instance to avoid host-port collisions.
       # Default: chat 4330-4399, gateway 4230-4299. NEVEN instance: 4430-4499 / 4330-4399 etc.
@@ -74,8 +76,8 @@ services:
     build:
       context: ./services/agent
       dockerfile: Dockerfile
-    image: nvnnnbt-agent:latest
-    container_name: nvnnnbt-agent
+    image: nvn-neven-agent:latest
+    container_name: nvn-neven-agent
     restart: unless-stopped
     ports:
       - "${AGENT_PORT:-6161}:6161"
@@ -85,6 +87,7 @@ services:
       AGENT_PORT: 6161
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       GROK_API_KEY: ${GROK_API_KEY:-}
+      DISCORD_TOKEN: ${DISCORD_TOKEN:-}
     volumes:
       - ./workspace:/workspace
     extra_hosts:
@@ -125,7 +128,7 @@ services:
   ollama:
     profiles: [bundled-ollama]
     image: ollama/ollama:latest
-    container_name: nvnnnbt-ollama
+    container_name: nvn-neven-ollama
     restart: unless-stopped
     ports:
       - "${OLLAMA_PORT:-11434}:11434"
@@ -147,4 +150,4 @@ volumes:
 
 networks:
   default:
-    name: nvnnnbt-net
+    name: nvn-neven-net

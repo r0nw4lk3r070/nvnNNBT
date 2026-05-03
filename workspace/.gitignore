@@ -6,3 +6,9 @@ memory/.dream_cursor
 memory/chats/
 memory/lab_state.json
 sessions/
+/*
+!memory/
+!SOUL.md
+!USER.md
+!memory/MEMORY.md
+!.gitignore

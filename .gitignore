@@ -29,3 +29,6 @@ __pycache__/
 *.db-shm
 *.db-wal
 data/factory.db
+
+# NEVEN-local overrides — not for shared repo
+workspace/config.json

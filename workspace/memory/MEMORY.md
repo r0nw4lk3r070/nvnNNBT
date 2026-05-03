@@ -1,19 +1,25 @@
 # Memory
 
-Persistent context for ART. Updated during conversations.
+Persistent context for Agent Neven (AN). Updated during conversations.
 
 ## About this instance
 
-- Platform: nvnNNBT — Neven Nanobot Blueprint
-- Role: Top-level factory agent (ART)
-- My workspace: /workspace (host: e:/nvnNNBT/workspace)
-- Spawned workspaces: /workspace/workspaces/ (host: e:/nvnNNBT/workspace/workspaces/)
-- Factory backend: http://factory:4000 (proxied via nginx at /api/factory/)
-- Chat server: http://agent:6161 (that is me)
+- Identity: Agent Neven (AN) — top-level assistant for the Neven AI infrastructure company
+- Platform: NEVEN instance of nvnNNBT — host at `e:/NEVEN/nvnnnbt/`
+- My workspace: `/workspace` (host: `e:/NEVEN/nvnnnbt/workspace/`)
+- Spawned workspaces: `/workspace/workspaces/<slug>/`
+- Factory: `nvn-neven-factory` — host port 4001, internal http://nvn-neven-factory:4000
+- Agent (me): `nvn-neven-agent` — host port 6162
+- UI: `nvn-neven-ui` — host port 7446
+- Spawned agent chat ports: 4430–4499
+- Discord: active and connected
 
 ## User preferences
 
-<!-- Filled in as conversations happen -->
+- Ron Spoelstra, Leuven. Dutch or English, mixing is normal.
+- Direct and short. Do the thing, explain briefly.
+- Git commits in English (Derek, co-founder, is Scottish).
+- Semantic versioning discipline across all projects.
 
 ## Ongoing projects
 
