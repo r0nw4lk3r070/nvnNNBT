@@ -94,7 +94,7 @@ async def _build_agent(config):
     return agent, cron
 
 
-async def _build_skillset_agent(workspace: Path, model: str):
+async def _build_skillset_agent(workspace: Path, model: str, provider_name: str = ""):
     """Build an ephemeral agent scoped to a skill-set workspace."""
     from nanobot.agent.loop                       import AgentLoop
     from nanobot.bus.queue                        import MessageBus
@@ -102,11 +102,21 @@ async def _build_skillset_agent(workspace: Path, model: str):
     from nanobot.session.manager                  import SessionManager
     from nanobot.utils.helpers                    import sync_workspace_templates
     from nanobot.providers.openai_compat_provider import OpenAICompatProvider
+    import os
 
     sync_workspace_templates(workspace)
 
-    # Grok chat models → xAI API; everything else → Ollama (via env var URL)
-    if model.startswith("grok-") and not model.startswith("grok-imagine"):
+    # Route through the same provider resolution logic as _make_provider.
+    # Grok image models → xAI
+    if model.startswith("grok-imagine"):
+        provider = OpenAICompatProvider(
+            api_key       = _state.GROK_API_KEY,
+            api_base      = _state.GROK_API_BASE,
+            default_model = model,
+            spec          = None,
+        )
+    # Grok chat models → xAI
+    elif model.startswith("grok-"):
         provider = OpenAICompatProvider(
             api_key       = _state.GROK_API_KEY,
             api_base      = _state.GROK_API_BASE,
@@ -114,9 +124,19 @@ async def _build_skillset_agent(workspace: Path, model: str):
             spec          = None,
         )
     else:
+        # Use configured provider (same as main agent path)
+        raw       = _state._read_config_raw()
+        providers = raw.get("providers", {})
+        p_cfg     = providers.get(provider_name) or providers.get("local") or {}
+
+        api_base  = p_cfg.get("apiBase") or p_cfg.get("api_base") or f"{_state.OLLAMA_BASE}/v1"
+        key_env   = p_cfg.get("apiKeyEnv", "")
+        api_key   = (os.environ.get(key_env, "") if key_env else "") or \
+                    p_cfg.get("apiKey", "") or p_cfg.get("api_key", "") or ""
+
         provider = OpenAICompatProvider(
-            api_key       = "",
-            api_base      = f"{_state.OLLAMA_BASE}/v1",
+            api_key       = api_key,
+            api_base      = api_base,
             default_model = model,
             spec          = None,
         )

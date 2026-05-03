@@ -37,11 +37,12 @@ _discord_channel = None
 _channel_manager = None
 
 # ── Lab (skill-set) state ─────────────────────────────────────────────────
-_lab_agent = None
-_lab_cron  = None
-_lab_name  = None
-_lab_model = None
-_lab_task  = None
+_lab_agent    = None
+_lab_cron     = None
+_lab_name     = None
+_lab_model    = None
+_lab_provider = None
+_lab_task     = None
 
 
 # ── Config helpers ────────────────────────────────────────────────────────
@@ -61,18 +62,18 @@ def _current_model() -> str:
     return _read_config_raw()["agents"]["defaults"]["model"]
 
 
-def _save_lab_state(name: str | None, model: str | None) -> None:
+def _save_lab_state(name: str | None, model: str | None, provider: str | None = None) -> None:
     LAB_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(LAB_STATE_FILE, "w", encoding="utf-8") as f:
-        json.dump({"name": name, "model": model}, f)
+        json.dump({"name": name, "model": model, "provider": provider or ""}, f)
 
 
-def _load_lab_state() -> tuple[str | None, str | None]:
+def _load_lab_state() -> tuple[str | None, str | None, str | None]:
     if not LAB_STATE_FILE.exists():
-        return None, None
+        return None, None, None
     try:
         with open(LAB_STATE_FILE, encoding="utf-8") as f:
             d = json.load(f)
-        return d.get("name") or None, d.get("model") or None
+        return d.get("name") or None, d.get("model") or None, d.get("provider") or None
     except Exception:
-        return None, None
+        return None, None, None

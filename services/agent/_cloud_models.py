@@ -1,6 +1,5 @@
 """
 Canonical list of cloud models available via Ollama and xAI.
-Sourced from E:\ron\services\dashboard\routers\_cloud_models.py
 """
 
 KNOWN_CLOUD_MODELS = [

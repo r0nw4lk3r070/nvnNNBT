@@ -518,7 +518,7 @@
           </svg>
         </template>
         <span style="font-size:1rem;font-weight:700"
-              x-text="['Welcome to nvnNNBT','Choose your provider','Configure connection','Choose default model','You\'re all set!'][step]"></span>
+              x-text="['Welcome','Choose your provider','Configure connection','Choose default model','You\'re all set!'][step]"></span>
       </div>
       <div style="font-size:.75rem;color:var(--muted)"
            x-text="['Let\'s get your AI provider connected — takes about 2 minutes.','Where are your models running?','Fill in the connection details for your provider.','Pick the model you\'d like to use by default.','Your first provider is connected. You can add more anytime in Settings.'][step]">
@@ -532,7 +532,7 @@
       <template x-if="step===0">
         <div style="display:flex;flex-direction:column;gap:.85rem">
           <div style="font-size:.82rem;color:var(--muted2);line-height:1.7">
-            nvnNNBT is a local-first AI agent platform. To get started you need at least one LLM provider — something that serves models on an OpenAI-compatible API.
+            This is a local-first AI agent platform. To get started you need at least one LLM provider — something that serves models on an OpenAI-compatible API.
           </div>
           <div style="display:flex;flex-direction:column;gap:.45rem;padding:.85rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:.78rem;color:var(--muted2);line-height:1.65">
             <div><span style="color:var(--accent2);font-weight:600">Ollama</span> — free, runs locally on your machine. Recommended for getting started.</div>
@@ -698,12 +698,12 @@
                 @click="back()" :disabled="busy">Back</button>
         <!-- Next / Finish -->
         <button x-show="step<4" class="btn btn-primary" style="font-size:.75rem;min-width:90px"
-                @click="next()" :disabled="busy || (step===1 && !selectedPreset)"
+                @click="next()" :disabled="busy || (step===1 && !selectedPreset) || (step===2 && testStatus !== 'ok')"
                 x-text="step===3 ? 'Finish' : 'Next →'">
         </button>
         <!-- Close on done -->
         <button x-show="step===4" class="btn btn-primary" style="font-size:.75rem"
-                @click="finish()">Start using nvnNNBT →</button>
+                @click="finish()">Let's go →</button>
       </div>
     </div>
   </div>
@@ -853,18 +853,15 @@
         </div>
 
         <!-- ── OVERVIEW ──────────────────────────────────────────── -->
-        <div class="section" x-show="$store.f.activeTab?.type === 'overview'"
-             x-data="overviewSection()">
-          <div class="sec-head">
-            <div class="sec-title">Overview</div>
-            <div class="sec-sub">Situation room — system health, active agents, recent activity.</div>
-          </div>
+        <div x-show="$store.f.activeTab?.type === 'overview'"
+             x-data="overviewSection()"
+             style="display:flex;flex-direction:column;padding:1rem 1.25rem;gap:.6rem;height:calc(100vh - var(--tabbar-h) - var(--statusbar-h));overflow:hidden">
 
-          <!-- Health strip -->
-          <div class="health-strip">
+          <!-- Compact status + nav bar -->
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;flex-shrink:0">
             <div class="h-item">
               <div class="h-dot" :class="health.agent"></div>
-              <span>Agent service</span>
+              <span>Agent</span>
             </div>
             <div class="h-item">
               <div class="h-dot" :class="health.factory"></div>
@@ -876,99 +873,100 @@
                 <span x-text="p.name"></span>
               </div>
             </template>
-          </div>
-
-          <!-- Resource bar -->
-          <div class="card" style="padding:.75rem 1.25rem;margin-bottom:1rem">
-            <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:center">
-              <!-- CPU -->
-              <div style="display:flex;flex-direction:column;gap:.2rem;min-width:90px">
-                <div style="font-size:.7rem;color:var(--muted);display:flex;justify-content:space-between">
-                  <span>CPU</span>
-                  <span x-text="stats.cpu_pct != null ? stats.cpu_pct.toFixed(0) + '%' : '—'"></span>
-                </div>
-                <div style="height:4px;background:var(--border);border-radius:2px">
+            <template x-if="stats.cpu_pct != null">
+              <div class="h-item" style="gap:.45rem">
+                <span style="font-size:.69rem;color:var(--muted)">CPU</span>
+                <div style="width:44px;height:4px;background:var(--border);border-radius:2px">
                   <div style="height:100%;border-radius:2px;transition:width .4s"
-                       :style="`width:${stats.cpu_pct ?? 0}%; background:${stats.cpu_pct > 85 ? 'var(--red)' : stats.cpu_pct > 60 ? 'var(--yellow)' : 'var(--accent)'}`">
-                  </div>
+                       :style="`width:${stats.cpu_pct}%;background:${stats.cpu_pct>85?'var(--red)':stats.cpu_pct>60?'var(--yellow)':'var(--accent)'}`"></div>
                 </div>
+                <span style="font-size:.68rem;color:var(--muted2);font-family:monospace" x-text="stats.cpu_pct.toFixed(0)+'%'"></span>
               </div>
-              <!-- RAM -->
-              <template x-if="stats.ram">
-                <div style="display:flex;flex-direction:column;gap:.2rem;min-width:110px">
-                  <div style="font-size:.7rem;color:var(--muted);display:flex;justify-content:space-between">
-                    <span>RAM</span>
-                    <span x-text="`${(stats.ram.used_mb/1024).toFixed(1)} / ${(stats.ram.total_mb/1024).toFixed(1)} GB`"></span>
-                  </div>
-                  <div style="height:4px;background:var(--border);border-radius:2px">
-                    <div style="height:100%;border-radius:2px;transition:width .4s"
-                         :style="`width:${(stats.ram.used_mb/stats.ram.total_mb*100).toFixed(0)}%; background:${stats.ram.used_mb/stats.ram.total_mb > .85 ? 'var(--red)' : stats.ram.used_mb/stats.ram.total_mb > .65 ? 'var(--yellow)' : 'var(--green)'}`">
-                    </div>
-                  </div>
+            </template>
+            <template x-if="stats.ram">
+              <div class="h-item" style="gap:.45rem">
+                <span style="font-size:.69rem;color:var(--muted)">RAM</span>
+                <div style="width:44px;height:4px;background:var(--border);border-radius:2px">
+                  <div style="height:100%;border-radius:2px;transition:width .4s"
+                       :style="`width:${(stats.ram.used_mb/stats.ram.total_mb*100).toFixed(0)}%;background:${stats.ram.used_mb/stats.ram.total_mb>.85?'var(--red)':stats.ram.used_mb/stats.ram.total_mb>.65?'var(--yellow)':'var(--green)'}`"></div>
                 </div>
-              </template>
-              <!-- VRAM -->
-              <template x-if="stats.vram">
-                <div style="display:flex;flex-direction:column;gap:.2rem;min-width:110px">
-                  <div style="font-size:.7rem;color:var(--muted);display:flex;justify-content:space-between">
-                    <span>VRAM</span>
-                    <span x-text="`${(stats.vram.used_mb/1024).toFixed(1)} / ${(stats.vram.total_mb/1024).toFixed(1)} GB`"></span>
-                  </div>
-                  <div style="height:4px;background:var(--border);border-radius:2px">
-                    <div style="height:100%;border-radius:2px;transition:width .4s"
-                         :style="`width:${(stats.vram.used_mb/stats.vram.total_mb*100).toFixed(0)}%; background:${stats.vram.used_mb/stats.vram.total_mb > .85 ? 'var(--red)' : stats.vram.used_mb/stats.vram.total_mb > .65 ? 'var(--yellow)' : 'var(--green)'}`">
-                    </div>
-                  </div>
+                <span style="font-size:.68rem;color:var(--muted2);font-family:monospace" x-text="(stats.ram.used_mb/1024).toFixed(1)+'G'"></span>
+              </div>
+            </template>
+            <template x-if="stats.vram">
+              <div class="h-item" style="gap:.45rem">
+                <span style="font-size:.69rem;color:var(--muted)">VRAM</span>
+                <div style="width:44px;height:4px;background:var(--border);border-radius:2px">
+                  <div style="height:100%;border-radius:2px;transition:width .4s"
+                       :style="`width:${(stats.vram.used_mb/stats.vram.total_mb*100).toFixed(0)}%;background:${stats.vram.used_mb/stats.vram.total_mb>.85?'var(--red)':stats.vram.used_mb/stats.vram.total_mb>.65?'var(--yellow)':'var(--green)'}`"></div>
                 </div>
-              </template>
+                <span style="font-size:.68rem;color:var(--muted2);font-family:monospace" x-text="(stats.vram.used_mb/1024).toFixed(1)+'G'"></span>
+              </div>
+            </template>
+            <div style="flex:1"></div>
+            <button class="btn-sm" @click="$store.f.open('lab')">Lab</button>
+            <button class="btn-sm" @click="$store.f.open('agents')">Agents</button>
+            <button class="btn-sm" @click="$store.f.open('arena')">Arena</button>
+          </div>
+
+          <!-- Room chat — dominant -->
+          <div style="flex:1;display:flex;flex-direction:column;min-height:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+            <!-- header -->
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:.5rem .85rem;border-bottom:1px solid var(--border);flex-shrink:0">
+              <div style="display:flex;align-items:center;gap:.5rem;font-size:.78rem;font-weight:600">
+                <div style="width:6px;height:6px;border-radius:50%;flex-shrink:0;transition:background .3s"
+                     :style="{background: peerOnline ? 'var(--green)' : 'var(--muted)', boxShadow: peerOnline ? '0 0 4px var(--green)' : 'none'}"></div>
+                <span>Room</span>
+                <span x-show="peerOnline" style="font-size:.68rem;color:var(--green);font-weight:400"
+                      x-text="'· ' + peerName + ' online'"></span>
+                <span x-show="!peerOnline" style="font-size:.68rem;color:var(--muted);font-weight:400">· waiting for peer</span>
+              </div>
+              <span style="font-size:.7rem;color:var(--muted);font-family:monospace" x-text="identity || '…'"></span>
             </div>
-          </div>
-
-          <!-- Quick actions -->
-          <div class="quick-actions">
-            <button class="btn btn-primary" @click="$store.f.open('lab')">Open Lab</button>
-            <button class="btn btn-ghost" @click="$store.f.open('agents')">Agents</button>
-            <button class="btn btn-ghost" @click="$store.f.open('arena')">New Arena session</button>
-            <button class="btn btn-ghost" @click="$store.f.open('benchmark')">Run Benchmark</button>
-          </div>
-
-          <!-- Recent activity -->
-          <div class="card">
-            <h3>Recent activity</h3>
-            <template x-if="events.length === 0">
-              <p style="color:var(--muted);font-size:.78rem;margin-top:.5rem">
-                No events yet. Activity appears here as you work.
-              </p>
-            </template>
-            <template x-if="events.length > 0">
-              <div style="margin-top:.6rem;display:flex;flex-direction:column;gap:.3rem">
-                <template x-for="ev in events" :key="ev.id">
-                  <div style="display:flex;align-items:flex-start;gap:.55rem;font-size:.77rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
-                    <div style="width:7px;height:7px;border-radius:50%;margin-top:.3rem;flex-shrink:0"
-                         :style="`background:${ev.level === 'error' ? 'var(--red)' : ev.level === 'warn' ? 'var(--yellow)' : 'var(--green)'}`">
-                    </div>
-                    <div style="flex:1;min-width:0">
-                      <span style="color:var(--muted2)" x-text="ev.type.replace(/_/g,' ')"></span>
-                      <template x-if="ev.target_slug">
-                        <span style="color:var(--muted);margin-left:.3rem" x-text="'· ' + ev.target_slug"></span>
-                      </template>
-                      <template x-if="ev.detail">
-                        <span style="color:var(--muted);margin-left:.3rem" x-text="'— ' + ev.detail"></span>
-                      </template>
-                    </div>
-                    <span style="color:var(--muted);font-size:.68rem;white-space:nowrap;flex-shrink:0" x-text="ev.created_at.slice(11,19)"></span>
+            <!-- messages -->
+            <div x-ref="msgs"
+                 style="flex:1;overflow-y:auto;padding:.65rem .85rem;display:flex;flex-direction:column;gap:.45rem;min-height:0;scrollbar-width:thin;scrollbar-color:var(--border) transparent">
+              <template x-if="messages.length === 0">
+                <div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.78rem;text-align:center;padding:2rem 1rem;line-height:1.7">
+                  No messages yet. Type something below<br>or tag <span style="color:var(--accent)">@art</span> to bring an agent into the conversation.
+                </div>
+              </template>
+              <template x-for="m in messages" :key="m.id">
+                <div style="display:flex;flex-direction:column;gap:.15rem"
+                     :style="{alignItems: m.user === identity ? 'flex-end' : 'flex-start'}">
+                  <div style="font-size:.65rem;color:var(--muted)" x-text="m.user + '  ·  ' + (m.created_at||'').slice(11,16)"></div>
+                  <div style="max-width:82%;padding:.4rem .75rem;border-radius:8px;font-size:.8rem;line-height:1.55;word-break:break-word"
+                       :style="{background: m.origin==='agent' ? 'var(--bg)' : m.user===identity ? 'var(--accent-dim)' : 'var(--surface2)', border: '1px solid', borderColor: m.origin==='agent' ? 'var(--border)' : m.user===identity ? 'var(--accent-border)' : 'var(--border)'}"
+                       x-html="highlightMentions(m.text)">
                   </div>
-                </template>
+                </div>
+              </template>
+              <div x-show="agentStreaming"
+                   style="align-self:flex-start;padding:.35rem .7rem;border-radius:8px;font-size:.77rem;background:var(--bg);border:1px solid var(--border);color:var(--muted);display:flex;align-items:center;gap:.45rem">
+                <span class="spinner"></span>
+                <span x-text="agentName + ' is thinking…'"></span>
               </div>
-            </template>
-          </div>
-
-          <!-- Active agents placeholder -->
-          <div class="card">
-            <h3>Active agents <span class="phase">Phase 2</span></h3>
-            <p style="color:var(--muted);font-size:.78rem;margin-top:.5rem">
-              No agents spawned. Spawn an agent from the Lab or Agents section.
-            </p>
+            </div>
+            <!-- input -->
+            <div style="border-top:1px solid var(--border);padding:.5rem;flex-shrink:0">
+              <div style="display:flex;gap:.4rem;align-items:flex-end">
+                <textarea x-ref="input" x-model="draft"
+                          @keydown.enter.exact.prevent="send()"
+                          @keydown.enter.shift.exact="draft += '\n'"
+                          @input="autosize($el)"
+                          placeholder="Message the room… (Enter to send · Shift+Enter for newline · @art to invoke an agent)"
+                          style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:.4rem .65rem;color:var(--text);font-size:.8rem;font-family:inherit;resize:none;min-height:34px;max-height:100px;outline:none;line-height:1.45;transition:border-color .12s"
+                          :style="{borderColor: draft.includes('@') ? 'var(--accent)' : ''}"></textarea>
+                <button style="width:34px;height:34px;border-radius:7px;border:none;background:var(--accent);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity .12s"
+                        :disabled="!draft.trim()"
+                        :style="{opacity: !draft.trim() ? '.3' : '1', cursor: !draft.trim() ? 'not-allowed' : 'pointer'}"
+                        @click="send()">
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;transform:rotate(45deg)">
+                    <path d="M3 10l14-7-7 14V10H3z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1189,10 +1187,17 @@
                                style="margin-left:.35rem;font-size:.65rem;background:var(--surface2);padding:.05rem .35rem;border-radius:8px;color:var(--muted)"
                                x-text="kbLibrary.length"></span>
               </div>
+              <div style="padding:.4rem .9rem;cursor:pointer;font-size:.75rem;white-space:nowrap;border-bottom:2px solid transparent;transition:color .1s,border-color .1s"
+                   :style="{color: activeFile==='_versions' ? 'var(--text)' : 'var(--muted)', borderBottomColor: activeFile==='_versions' ? 'var(--accent)' : 'transparent'}"
+                   @click="switchFile('_versions')">
+                Versions<span x-show="versions.length > 0"
+                              style="margin-left:.35rem;font-size:.65rem;background:var(--surface2);padding:.05rem .35rem;border-radius:8px;color:var(--muted)"
+                              x-text="versions.length"></span>
+              </div>
             </div>
 
             <!-- identity file editor -->
-            <div :style="{display: activeFile !== '_skills' && activeFile !== '_knowledge' ? 'flex' : 'none'}"
+            <div :style="{display: activeFile !== '_skills' && activeFile !== '_knowledge' && activeFile !== '_versions' ? 'flex' : 'none'}"
                  style="flex-direction:column;gap:.6rem;padding:1rem">
               <textarea style="width:100%;min-height:calc(100vh - 330px);background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:.7rem .9rem;color:var(--text);font-family:'Cascadia Code','Fira Code',Consolas,monospace;font-size:.75rem;resize:vertical;outline:none;transition:border-color .12s;line-height:1.6"
                         @focus="$el.style.borderColor='var(--accent)'"
@@ -1304,6 +1309,32 @@
                     </div>
                   </template>
                 </div>
+              </div>
+            </div>
+
+            <!-- versions panel -->
+            <div x-show="activeFile === '_versions'"
+                 style="background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:.75rem;min-height:calc(100vh - 320px);overflow-y:auto">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+                <span style="font-size:.8rem;font-weight:600;color:var(--text)">Saved versions</span>
+                <div style="display:flex;gap:.4rem">
+                  <button class="btn btn-ghost" style="font-size:.7rem"
+                          @click="fetchVersions(active?.slug)" :disabled="busy">↻</button>
+                  <button class="btn btn-primary" style="font-size:.7rem"
+                          @click="promoteWorkspace()" :disabled="busy">→ Promote to production</button>
+                </div>
+              </div>
+              <div x-show="versions.length === 0" style="font-size:.75rem;color:var(--muted)">No tagged versions yet. Use "Tag version" in the header.</div>
+              <div style="display:flex;flex-direction:column;gap:.3rem">
+                <template x-for="v in versions" :key="v.id">
+                  <div style="display:flex;align-items:center;gap:.6rem;padding:.3rem .6rem;background:var(--bg);border:1px solid var(--border);border-radius:6px">
+                    <span style="flex:1;font-family:monospace;font-size:.78rem" x-text="v.tag"></span>
+                    <span x-show="v.commit_hash" style="font-size:.68rem;color:var(--muted);font-family:monospace" x-text="v.commit_hash?.slice(0,7)"></span>
+                    <span x-show="v.created_at" style="font-size:.68rem;color:var(--muted)" x-text="new Date(v.created_at * 1000).toLocaleDateString()"></span>
+                    <button class="btn btn-sm" :disabled="busy"
+                            @click="restoreVersion(v.tag)">Restore</button>
+                  </div>
+                </template>
               </div>
             </div>
 
@@ -2840,13 +2871,17 @@
     return {
       health: { agent: 'idle', factory: 'idle' }, healthProviders: [],
       stats:  { cpu_pct: null, ram: null, vram: null },
-      events: [],
+      // room chat
+      messages: [], draft: '', identity: '',
+      peerOnline: false, peerName: '',
+      agentStreaming: false, agentName: '',
+      _sse: null,
 
       async init() {
-        await Promise.all([this.checkHealth(), this.loadEvents(), this.loadStats()])
+        await Promise.all([this.checkHealth(), this.loadStats(), this._loadIdentity(), this._loadHistory()])
         setInterval(() => this.checkHealth(), 10000)
-        setInterval(() => this.loadStats(),  5000)
-        setInterval(() => this.loadEvents(), 30000)
+        setInterval(() => this.loadStats(),   5000)
+        this._connectSSE()
       },
 
       async checkHealth() {
@@ -2876,14 +2911,81 @@
         } catch {}
       },
 
-      async loadEvents() {
+      async _loadIdentity() {
         try {
-          const r = await fetch('/api/factory/events?limit=20', { signal: AbortSignal.timeout(4000) })
+          const r = await fetch('/api/factory/room/identity', { signal: AbortSignal.timeout(3000) })
+          if (r.ok) { const d = await r.json(); this.identity = d.name || 'user' }
+        } catch {}
+      },
+
+      async _loadHistory() {
+        try {
+          const r = await fetch('/api/factory/room/sync', { signal: AbortSignal.timeout(4000) })
           if (r.ok) {
             const d = await r.json()
-            this.events = d.events || []
+            this.messages = d.messages || []
+            this.$nextTick(() => this.scrollBottom())
           }
         } catch {}
+      },
+
+      _connectSSE() {
+        if (this._sse) { this._sse.close(); this._sse = null; }
+        const es = new EventSource('/api/factory/room/stream')
+        this._sse = es
+        es.onmessage = (e) => {
+          try {
+            const m = JSON.parse(e.data)
+            if (m.type === 'connected') return
+            if (m.type === 'peer_status') { this.peerOnline = m.online; this.peerName = m.name || ''; return }
+            if (m.type === 'agent_token') {
+              const last = this.messages[this.messages.length - 1]
+              if (last?.streaming) { last.text += m.token }
+              else { this.messages.push({ id: 'stream-' + Date.now(), user: m.agent, text: m.token || '', origin: 'agent', streaming: true, created_at: new Date().toISOString() }) }
+              this.agentStreaming = true; this.agentName = m.agent
+              this.scrollBottom(); return
+            }
+            if (m.type === 'agent_done') {
+              const last = this.messages[this.messages.length - 1]
+              if (last?.streaming) last.streaming = false
+              this.agentStreaming = false; this.scrollBottom(); return
+            }
+            if (!this.messages.find(x => x.id === m.id)) {
+              this.messages.push(m); this.scrollBottom()
+            }
+          } catch {}
+        }
+        es.onerror = () => { es.close(); setTimeout(() => this._connectSSE(), 3000) }
+      },
+
+      async send() {
+        const text = this.draft.trim()
+        if (!text) return
+        this.draft = ''
+        this.$nextTick(() => { if (this.$refs.input) this.$refs.input.style.height = 'auto' })
+        try {
+          await fetch('/api/factory/room/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text }),
+          })
+        } catch {}
+      },
+
+      scrollBottom() {
+        this.$nextTick(() => { const el = this.$refs.msgs; if (el) el.scrollTop = el.scrollHeight })
+      },
+
+      highlightMentions(text) {
+        if (!text) return ''
+        return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                   .replace(/@(\w[\w-]*)/g, '<span style="color:var(--accent);font-weight:600">@$1</span>')
+                   .replace(/\n/g, '<br>')
+      },
+
+      autosize(el) {
+        el.style.height = 'auto'
+        el.style.height = Math.min(el.scrollHeight, 100) + 'px'
       },
     }
   }
@@ -2902,6 +3004,7 @@
       identityFiles: ['SOUL.md', 'AGENTS.md', 'TOOLS.md', 'HEARTBEAT.md', 'USER.md'],
       skills: [],
       skillsLoading: false,
+      versions: [],
 
       async init() {
         await this.fetchWorkspaces();
@@ -2927,9 +3030,52 @@
             this.activeFile = 'SOUL.md';
             this.fileContent = d.files?.['SOUL.md'] || '';
             this.fileSaved = false;
+            this.versions = [];
             await this.fetchSkills(slug);
+            await this.fetchVersions(slug);
           }
         } catch {}
+        this.busy = false;
+      },
+
+      async fetchVersions(slug) {
+        try {
+          const r = await fetch(`/api/factory/workspaces/${slug}/versions`);
+          if (r.ok) { const d = await r.json(); this.versions = d.versions || []; }
+        } catch {}
+      },
+
+      async restoreVersion(tag) {
+        if (!this.active || !confirm(`Restore workspace to version "${tag}"?\nUnsaved changes will be overwritten.`)) return;
+        this.busy = true;
+        try {
+          const r = await fetch(`/api/factory/workspaces/${this.active.slug}/restore`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tag }),
+          });
+          if (r.ok) {
+            await this.loadWorkspace(this.active.slug);
+          } else {
+            const d = await r.json().catch(() => ({}));
+            alert('Restore failed: ' + (d.detail || r.statusText));
+          }
+        } catch (e) { alert('Error: ' + e.message); }
+        this.busy = false;
+      },
+
+      async promoteWorkspace() {
+        if (!this.active || !confirm(`Promote "${this.active.slug}" sandbox → production?\nThis syncs files to the live workspace.`)) return;
+        this.busy = true;
+        try {
+          const r = await fetch(`/api/factory/workspaces/${this.active.slug}/promote`, { method: 'POST' });
+          if (r.ok) {
+            const d = await r.json().catch(() => ({}));
+            alert(d.detail || 'Promoted.');
+          } else {
+            const d = await r.json().catch(() => ({}));
+            alert('Promote failed: ' + (d.detail || r.statusText));
+          }
+        } catch (e) { alert('Error: ' + e.message); }
         this.busy = false;
       },
 
@@ -2943,6 +3089,11 @@
             this.kbLoadInbox('workspace', this.active.slug);
             this.kbLoadLibrary('workspace', this.active.slug);
           }
+          return;
+        }
+        if (fn === '_versions') {
+          this.activeFile = '_versions';
+          if (this.active?.slug) this.fetchVersions(this.active.slug);
           return;
         }
         this.fileContent = this.active?.files?.[fn] ?? '';
@@ -4079,7 +4230,7 @@
         try {
           const r = await fetch('/api/factory/sandbox/load', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ slug: this.slug, model: this.model }),
+            body: JSON.stringify({ slug: this.slug, model: this.model, provider: this.modelTab }),
           });
           if (r.ok) {
             this.status = 'loaded';
@@ -4232,7 +4383,7 @@
           keyPlaceholder: 'xai-…',
           apiKeyEnv: 'GROK_API_KEY',
           liveDiscover: false,
-          staticModels: ['grok-3-mini-fast', 'grok-3-mini', 'grok-3', 'grok-3-fast'],
+          staticModels: ['grok-4.20-0309-reasoning', 'grok-4.20-0309-non-reasoning', 'grok-4.20-multi-agent-0309', 'grok-4-1-fast-reasoning', 'grok-4-1-fast-non-reasoning'],
         },
         {
           id: 'openai',
@@ -4269,16 +4420,22 @@
       ],
 
       async init() {
-        // Show wizard only when no providers are configured
-        try {
-          const r = await fetch('/api/providers', { signal: AbortSignal.timeout(4000) });
-          if (r.ok) {
-            const d = await r.json();
-            if (!d.providers || d.providers.length === 0) this.visible = true;
-          }
-        } catch {
-          // agent not up yet — don't block UI
-        }
+        // Poll until agent is reachable, then show wizard if no providers configured.
+        // Agent has up to 150s start_period, so we retry for ~3 minutes.
+        let attempts = 0;
+        const check = async () => {
+          try {
+            const r = await fetch('/api/providers', { signal: AbortSignal.timeout(3000) });
+            if (r.ok) {
+              const d = await r.json();
+              if (!d.providers || d.providers.length === 0) this.visible = true;
+              return;
+            }
+          } catch {}
+          attempts++;
+          if (attempts < 36) setTimeout(check, 5000);
+        };
+        await check();
       },
 
       selectPreset(opt) {
@@ -4461,7 +4618,7 @@
           const r = await fetch('/api/model', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: this.modelSelected }),
+            body: JSON.stringify({ model: this.modelSelected, provider: this.modelTab }),
           })
           if (r.ok) { this.model = this.modelSelected; this.modelOpen = false }
         } catch {}
@@ -4749,7 +4906,7 @@
         try {
           const r = await fetch('/api/model', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: this.modelSelected }),
+            body: JSON.stringify({ model: this.modelSelected, provider: this.modelTab }),
           })
           if (r.ok) {
             this.currentModel = this.modelSelected

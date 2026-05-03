@@ -47,14 +47,15 @@ async def run() -> None:
         logger.info("Art: Discord channel started")
 
     # Restore last-loaded skill-set if one was active before shutdown
-    _saved_name, _saved_model = state._load_lab_state()
+    _saved_name, _saved_model, _saved_provider = state._load_lab_state()
     if _saved_name and _saved_model:
         _workspace = state.SKILLSETS_DIR / _saved_name
         if _workspace.exists():
             try:
-                state._lab_agent, state._lab_cron = await _agent_mod._build_skillset_agent(_workspace, _saved_model)
-                state._lab_name  = _saved_name
-                state._lab_model = _saved_model
+                state._lab_agent, state._lab_cron = await _agent_mod._build_skillset_agent(_workspace, _saved_model, _saved_provider or "")
+                state._lab_name     = _saved_name
+                state._lab_model    = _saved_model
+                state._lab_provider = _saved_provider
                 logger.info("lab: restored skill-set '{}' (model {})", _saved_name, _saved_model)
             except Exception as _e:
                 logger.warning("lab: could not restore skill-set '{}': {}", _saved_name, _e)

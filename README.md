@@ -54,14 +54,14 @@ The factory UI is a VS Code–style single-page app with sections in the activit
 
 | Section | What |
 |---|---|
-| **Overview** | System health (factory, agent, providers), CPU/RAM, recent event feed |
+| **Room** | P2P room chat — real-time messaging via SSE, @mention agent invocation, optional peer federation across machines |
 | **Art Office** | Top-level agent — persistent chat, streaming, tool use, right-panel settings |
-| **Lab** | Workspace editor — write SOUL, AGENTS, TOOLS, HEARTBEAT, USER, skills. Open any workspace in the sandbox to chat with the scoped agent and iterate. |
+| **Lab** | Workspace editor — write SOUL, AGENTS, TOOLS, HEARTBEAT, USER, skills. Open any workspace in the sandbox to chat with the scoped agent and iterate. Version tagging, restore, and promote to production. |
 | **Agents** | Solo agent spawn — slug, display name, model → own Docker container, own workspace, own chat UI |
 | **Teams** | Multi-agent teams — create with skillset + model picker per member and manager, shared knowledge base (`shared.db`), spawn/stop/delete |
 | **Arena** | Test teams before going live — spawn in test mode, interact with the manager, observe delegation |
 | **Benchmark** | Tag workspace versions, define task sets, run LLM-as-judge evals, compare across versions and models |
-| **DevOps / Settings** | Provider configuration — add/remove LLM providers, discover models, set API keys |
+| **DevOps / Settings** | Provider onboarding wizard — add/remove LLM providers, test connection, discover models, set API keys |
 
 ---
 
@@ -103,6 +103,8 @@ OLLAMA_BASE_URL=http://ollama:11434
 | `GROK_API_KEY` | *(empty)* | xAI key — leave empty if not using Grok |
 | `FACTORY_TOKEN` | *(empty)* | Optional bearer token for factory API auth |
 | `HOST_RAM_MB` | `0` | Physical host RAM in MB — set for accurate dashboard memory display |
+| `USER_NAME` | `user` | Display name shown in room chat |
+| `PEER_URL` | *(empty)* | URL of a peer instance for P2P room federation (e.g. a Tailscale address) |
 | `UI_PORT` | `3000` | Host port for the UI |
 | `FACTORY_PORT` | `4000` | Host port for the factory API |
 | `AGENT_PORT` | `6161` | Host port for the Art agent |
@@ -127,6 +129,7 @@ nvnNNBT/
 │   │       ├── workspaces.py   # skill-set CRUD, file editor, git versioning
 │   │       ├── sandbox.py      # ephemeral sandbox sessions
 │   │       ├── benchmark.py    # task sets, LLM-as-judge runs
+│   │       ├── room.py         # P2P room chat — SSE fan-out, peer federation, @mention agent
 │   │       ├── system.py       # health, CPU/RAM, provider probes
 │   │       └── events.py       # activity log
 │   └── ui/                 # SPA + nginx reverse proxy
@@ -152,7 +155,8 @@ nvnNNBT/
 - **Phase 1** — Art + Lab in Docker, factory service, SPA shell ✅
 - **Phase 2** — Solo agent spawn, standalone agent UI, Lab editor + sandbox, workspace CRUD ✅
 - **Phase 3** — Teams, Arena, shared knowledge base, delegation log, session replay, member override ✅
-- **Phase 4** — Export (portable agent bundles)
+- **Phase 4** — Provider onboarding wizard, P2P room chat, Lab version restore/promote, cross-platform setup scripts ✅
+- **Phase 5** — Export (portable agent bundles)
 
 See [docs/factory.md](docs/factory.md) for the full architecture document.
 

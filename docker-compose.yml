@@ -44,6 +44,9 @@ services:
       # Set to your physical host RAM in MB so the dashboard shows real memory.
       # Example: 32768 for 32 GB. Leave 0 to use container-visible RAM (WSL2 limit).
       HOST_RAM_MB: ${HOST_RAM_MB:-0}
+      # Room chat — peer federation
+      PEER_URL: ${PEER_URL:-}
+      USER_NAME: ${USER_NAME:-user}
     volumes:
       - ./data:/app/data
       - ./data/workspaces:/app/data/workspaces
@@ -80,6 +83,8 @@ services:
       GROK_API_KEY: ${GROK_API_KEY:-}
     volumes:
       - ./workspace:/workspace
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:6161/health')"]
       interval: 10s
