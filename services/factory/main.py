@@ -22,6 +22,7 @@ from routers import agents as agents_router
 from routers import teams as teams_router
 from routers import benchmark as benchmark_router
 from routers import knowledge as knowledge_router
+from routers import room as room_router
 
 # ── Config ────────────────────────────────────────────────────────────────────
 AGENT_URL     = os.environ.get("AGENT_URL",       "http://agent:6161")
@@ -51,6 +52,7 @@ app.include_router(agents_router.router)
 app.include_router(teams_router.router)
 app.include_router(benchmark_router.router)
 app.include_router(knowledge_router.router)
+app.include_router(room_router.router)
 
 
 # ── Health ────────────────────────────────────────────────────────────────────

@@ -213,8 +213,9 @@ async def handle_lab_load(request: web.Request) -> web.Response:
     except Exception:
         return web.Response(status=400, text="invalid JSON")
 
-    name  = (body.get("name")  or "").strip()
-    model = (body.get("model") or "").strip()
+    name     = (body.get("name")     or "").strip()
+    model    = (body.get("model")    or "").strip()
+    provider = (body.get("provider") or "").strip()
     if not name or not model:
         return web.Response(status=400, text="name and model required")
 
@@ -231,10 +232,11 @@ async def handle_lab_load(request: web.Request) -> web.Response:
         except Exception: pass
 
     try:
-        state._lab_agent, state._lab_cron = await _agent_mod._build_skillset_agent(workspace, model)
-        state._lab_name  = name
-        state._lab_model = model
-        state._save_lab_state(name, model)
+        state._lab_agent, state._lab_cron = await _agent_mod._build_skillset_agent(workspace, model, provider)
+        state._lab_name     = name
+        state._lab_model    = model
+        state._lab_provider = provider
+        state._save_lab_state(name, model, provider)
         logger.info("lab: loaded skill-set '{}' with model {}", name, model)
     except Exception as e:
         state._lab_agent = state._lab_cron = state._lab_name = state._lab_model = None

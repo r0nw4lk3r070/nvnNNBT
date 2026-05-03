@@ -22,6 +22,7 @@ router = APIRouter(prefix="/sandbox", tags=["sandbox"])
 class LoadBody(BaseModel):
     slug: str
     model: str = ""
+    provider: str = ""
 
 
 @router.post("/load")
@@ -37,6 +38,8 @@ async def sandbox_load(body: LoadBody) -> dict:
     payload: dict = {"name": body.slug}
     if body.model:
         payload["model"] = body.model
+    if body.provider:
+        payload["provider"] = body.provider
 
     async with httpx.AsyncClient(base_url=AGENT_URL, timeout=30) as client:
         r = await client.post("/api/lab/load", json=payload)

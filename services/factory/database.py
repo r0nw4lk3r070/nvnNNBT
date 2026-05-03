@@ -123,6 +123,14 @@ CREATE TABLE IF NOT EXISTS events (
     level       TEXT DEFAULT 'info',
     created_at  TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS room_messages (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user       TEXT NOT NULL,
+    text       TEXT NOT NULL,
+    origin     TEXT DEFAULT 'local',
+    created_at TEXT DEFAULT (datetime('now'))
+);
 """
 
 

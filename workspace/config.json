@@ -2,7 +2,7 @@
   "agents": {
     "defaults": {
       "workspace": "/workspace",
-      "model": "kimi-k2.6:cloud",
+      "model": "gemma3:4b-cloud",
       "provider": "ollamaCloud",
       "maxTokens": 8192,
       "contextWindowTokens": 32768,
