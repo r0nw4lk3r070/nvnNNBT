@@ -7,7 +7,9 @@ from pathlib import Path
 
 import docker
 import docker.errors
-from fastapi import APIRouter, HTTPException
+import httpx
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from database import DB_PATH, get_conn
@@ -20,10 +22,15 @@ AGENT_IMAGE      = os.environ.get("AGENT_IMAGE",      "nvnnnbt-agent:latest")
 COMPOSE_NETWORK  = os.environ.get("COMPOSE_NETWORK",  "nvnnnbt-net")
 OLLAMA_URL       = os.environ.get("OLLAMA_BASE_URL",   "http://ollama:11434")
 HOST_PROJECT     = os.environ.get("HOST_PROJECT_PATH", "")   # absolute path on HOST machine
+AGENT_HOST       = os.environ.get("AGENT_PROXY_HOST", "host.docker.internal")
 
-# Port bands (from factory.md)
-_GATEWAY_BAND = range(4230, 4300)
-_CHAT_BAND    = range(4330, 4400)
+# Port bands — configurable via env so multiple instances don't collide.
+# AGENT_GATEWAY_PORT_BASE: base of 70-port band for gateway (unused band, reserved)
+# AGENT_CHAT_PORT_BASE:    base of 70-port band for chat (the port users connect to)
+_GATEWAY_BASE = int(os.environ.get("AGENT_GATEWAY_PORT_BASE", "4230"))
+_CHAT_BASE    = int(os.environ.get("AGENT_CHAT_PORT_BASE",    "4330"))
+_GATEWAY_BAND = range(_GATEWAY_BASE, _GATEWAY_BASE + 70)
+_CHAT_BAND    = range(_CHAT_BASE,    _CHAT_BASE    + 70)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -159,7 +166,7 @@ async def spawn_agent(body: SpawnBody) -> dict:
             detach=True,
             network=COMPOSE_NETWORK,
             ports={
-                "6161/tcp": ("127.0.0.1", chat_port),
+                "6161/tcp": ("0.0.0.0", chat_port),
             },
             environment={
                 "WORKSPACE_PATH": ws_path_container,
@@ -275,3 +282,67 @@ async def start_agent(slug: str) -> dict:
     log_event("agent_spawn", target_type="agent", target_slug=slug,
               detail=f"Agent '{slug}' started")
     return {"ok": True}
+
+
+# ── Proxy to spawned agent ────────────────────────────────────────────────────
+# Routes all requests through factory so the UI never needs a direct port link.
+# Reachable via nginx at: /api/factory/agents/{slug}/proxy/{path}
+
+def _agent_base_url(slug: str) -> str:
+    """Return http://host:port for a running spawned agent."""
+    with get_conn(DB_PATH) as conn:
+        row = conn.execute(
+            "SELECT ports FROM spawned_agents WHERE slug=? AND status='running'",
+            (slug,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Agent '{slug}' not running")
+    _, chat_port = _parse_ports(row[0])
+    if not chat_port:
+        raise HTTPException(status_code=500, detail=f"No chat port recorded for '{slug}'")
+    return f"http://{AGENT_HOST}:{chat_port}"
+
+
+@router.api_route("/{slug}/proxy/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def agent_proxy(slug: str, path: str, request: Request):
+    """Transparent proxy — forwards request to spawned agent, streams SSE back."""
+    base = _agent_base_url(slug)
+    url  = f"{base}/{path}" if path else f"{base}/"
+
+    body    = await request.body()
+    headers = {
+        k: v for k, v in request.headers.items()
+        if k.lower() not in ("host", "content-length")
+    }
+
+    # Detect SSE / streaming requests
+    wants_stream = (
+        request.headers.get("accept", "") == "text/event-stream"
+        or path in ("chat", "lab/chat")
+    )
+
+    if wants_stream:
+        async def _stream():
+            async with httpx.AsyncClient(timeout=None) as client:
+                async with client.stream(
+                    request.method, url,
+                    content=body, headers=headers,
+                ) as r:
+                    async for chunk in r.aiter_bytes():
+                        yield chunk
+        return StreamingResponse(
+            _stream(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.request(
+            request.method, url,
+            content=body, headers=headers,
+        )
+    return StreamingResponse(
+        iter([r.content]),
+        status_code=r.status_code,
+        media_type=r.headers.get("content-type", "application/octet-stream"),
+    )
