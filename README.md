@@ -14,7 +14,7 @@ Build, test, and deploy AI agents and agent teams. One application, Docker-first
 | `agent` | 6161 | nanobot-ai — Art (persistent top-level agent) |
 | `chrome` | 9222 | Headless Chromium — CDP endpoint for browser harness |
 
-Spawned solo agents use ports **4330–4399** (chat). Team members use **4400–4499**, team managers **4500–4549**.
+Spawned solo agents use ports **4330–4399** (chat) by default — configurable via `AGENT_CHAT_PORT_BASE` in `.env`. Offset this when running multiple instances side by side.
 
 ---
 
