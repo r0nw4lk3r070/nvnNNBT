@@ -217,7 +217,10 @@
               </td>
               <td x-text="a.model"></td>
               <td>
-                <a class="port-link" :href="'http://localhost:' + a.port" target="_blank" x-text="a.port"></a>
+                <a class="port-link"
+                   :href="'/api/factory/agents/' + a.slug + '/proxy/'"
+                   target="_blank"
+                   x-text="a.port"></a>
               </td>
               <td>
                 <span class="badge"

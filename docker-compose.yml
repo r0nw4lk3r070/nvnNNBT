@@ -41,6 +41,10 @@ services:
       AGENT_IMAGE: nvnnnbt-agent:latest
       COMPOSE_NETWORK: nvnnnbt-net
       FACTORY_TOKEN: ${FACTORY_TOKEN:-}
+      # Port bands for spawned agents. Offset per instance to avoid host-port collisions.
+      # Default: chat 4330-4399, gateway 4230-4299. NEVEN instance: 4430-4499 / 4330-4399 etc.
+      AGENT_CHAT_PORT_BASE: ${AGENT_CHAT_PORT_BASE:-4330}
+      AGENT_GATEWAY_PORT_BASE: ${AGENT_GATEWAY_PORT_BASE:-4230}
       # Set to your physical host RAM in MB so the dashboard shows real memory.
       # Example: 32768 for 32 GB. Leave 0 to use container-visible RAM (WSL2 limit).
       HOST_RAM_MB: ${HOST_RAM_MB:-0}
