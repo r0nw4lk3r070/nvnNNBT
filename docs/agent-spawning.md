@@ -9,22 +9,21 @@ nvnNNBT can spawn additional nanobot agents on demand — each running in its ow
 The `factory` service (FastAPI :4000) mounts the host Docker socket (`/var/run/docker.sock`). When a spawn request comes in, the factory calls the Docker daemon directly — creating a sibling container (not a child), attaching it to the same internal network, and binding the workspace folder from the host. The spawned agent serves its own web UI and chat API on its own port.
 
 ```
-┌────────────────┐    POST /api/factory/agents    ┌─────────────┐
-│  ui / caller   │ ──────────────────────────────▶ │  factory    │
-│                │                                  │  :4000      │
-│                │ ◀── { chat_port: 4330 } ──────── │             │
-└────────────────┘                                  └──────┬──────┘
-                                                           │  docker run nvnnnbt-agent:latest
-                                                           ▼
-                                                    ┌─────────────────────────┐
-                                                    │  nvnnnbt-agent-demo     │
-                                                    │  AGENT_MODE=production  │
-                                                    │  host: 127.0.0.1:4330   │
-                                                    │  Serves own web UI      │
-                                                    └─────────────────────────┘
+┌────────────────┐    POST /api/factory/agents    ┌─────────────────────────────┐
+│  ui / caller   │ ──────────────────────────────▶ │  factory :4000              │
+│                │ ◀── { chat_port: 4330 } ──────── │                             │
+│                │                                  └────────────┬────────────────┘
+│                │                                               │  docker run nvnnnbt-agent:latest
+│                │                                               ▼
+│                │                                  ┌─────────────────────────────┐
+│                │                                  │  nvnnnbt-agent-demo         │
+│  GET /api/factory/agents/demo/proxy/*             │  AGENT_MODE=production      │
+│ ─────────────────────────────────────────────────▶  host: 0.0.0.0:4330         │
+│                │  ◀─── proxied response ─────────  Serves own web UI + /chat   │
+└────────────────┘                                  └─────────────────────────────┘
 ```
 
-Spawned agents are **not** proxied through the factory — they are accessed directly at `http://localhost:{chat_port}/`. Each one runs `nvnnnbt-agent:latest` with `AGENT_MODE=production`, which switches the agent to its standalone teal dark UI (`html_agent.py`) instead of the ART interface.
+Spawned agents are **proxied through the factory** at `/api/factory/agents/{slug}/proxy/{path}`. This means the standalone chat is accessible from any machine without knowing the agent's raw host port. Direct access at `http://host:{chat_port}/` also works. Each one runs `nvnnnbt-agent:latest` with `AGENT_MODE=production`, which switches the agent to its standalone teal dark UI (`html_agent.py`) instead of the ART interface.
 
 ```
 ---
@@ -72,16 +71,18 @@ Status is synced live from the Docker daemon on `GET /agents`.
 
 ## Port allocation
 
-Each spawned agent is assigned two ports from reserved bands:
+Each spawned agent is assigned two ports from reserved bands. The bands are configurable via `.env` so multiple instances of the factory can run on the same host without collision.
 
-| Band | Range | Purpose |
-|---|---|---|
-| Gateway | 4230–4299 | Reserved for future agent gateway (MCP, etc.) |
-| Chat | 4330–4399 | Agent web UI + chat API |
+| Band | Default range | Env var | Purpose |
+|---|---|---|---|
+| Gateway | 4230–4299 | `AGENT_GATEWAY_PORT_BASE=4230` | Reserved for future agent gateway (MCP, etc.) |
+| Chat | 4330–4399 | `AGENT_CHAT_PORT_BASE=4330` | Agent web UI + chat API |
 
-Port assignment picks the lowest free port in each band. Only the **chat port** is currently exposed on the host (`127.0.0.1:{chat_port}:6161/tcp`). The gateway port is allocated and stored for future use.
+Port assignment picks the lowest free port in each band. The **chat port** is exposed on the host bound to `0.0.0.0:{chat_port}:6161/tcp` so the factory proxy can reach it via `host.docker.internal`. The gateway port is allocated and stored for future use.
 
-With these bands, up to **70 simultaneous spawned agents** are supported.
+With these bands, up to **70 simultaneous spawned agents** are supported per instance.
+
+> **Running two factory instances on one machine?** Offset the bases in each `.env` to avoid collision — see [Running multiple instances](#running-multiple-instances) below.
 
 ---
 
@@ -154,7 +155,14 @@ Force-removes the container **and** removes it from the registry. **Does not del
 
 ## The standalone agent web UI
 
-When a spawned agent is running, opening `http://localhost:{chat_port}/` in a browser shows the standalone agent interface:
+When a spawned agent is running its interface is reachable two ways:
+
+| Access path | When to use |
+|---|---|
+| `/api/factory/agents/{slug}/proxy/` | Recommended — works from any machine, through the main UI's nginx |
+| `http://{host}:{chat_port}/` | Direct access — useful for debugging or when factory is unreachable |
+
+The **Agents** section of the UI links directly to the proxy path. Opening it shows the standalone agent interface:
 
 - **Dark teal theme** — distinct from the ART assistant to make it clear this is a separate agent.
 - **Agent name** — loaded from the first `#` heading in the workspace's `SOUL.md` on page load.
@@ -238,5 +246,44 @@ docker ps -a --filter "name=nvnnnbt-agent-" --format "{{.Names}}" | ForEach-Obje
 **Linux / macOS:**
 ```bash
 docker ps -a --filter "name=nvnnnbt-agent-" --format "{{.Names}}" | xargs -r docker rm -f
+```
+
+---
+
+## Running multiple instances
+
+Two (or more) instances of nvnNNBT can run on the same host — useful for a dev instance and a live instance side by side. Each instance needs:
+
+**1. Its own directory** (separate clone or copy):
+```
+e:/nvnNNBT/          ← yellow / dev instance
+e:/NEVEN/nvnnnbt/    ← NEVEN / live instance
+```
+
+**2. Its own `.env`** with offset ports and a unique project name:
+
+```env
+# .env for yellow (dev)
+UI_PORT=3000
+FACTORY_PORT=4000
+AGENT_PORT=6161
+CHROME_PORT=9222
+AGENT_CHAT_PORT_BASE=4330
+AGENT_GATEWAY_PORT_BASE=4230
+COMPOSE_PROJECT_NAME=nvnnnbt
+
+# .env for NEVEN (live)
+UI_PORT=7446
+FACTORY_PORT=4001
+AGENT_PORT=6162
+CHROME_PORT=9223
+AGENT_CHAT_PORT_BASE=4430
+AGENT_GATEWAY_PORT_BASE=4330
+COMPOSE_PROJECT_NAME=nvn-neven
+```
+
+**3. Its own `docker-compose.yml`** with unique container and image names (so Docker doesn't confuse the two). The simplest way is to rename the `container_name:` and `image:` fields — or let `COMPOSE_PROJECT_NAME` handle auto-generated names (chrome, volumes, networks) while keeping explicit names unique manually.
+
+With these settings, spawned agents from each instance pull from their own port band and their containers are named distinctly.
 ```
 
