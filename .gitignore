@@ -17,9 +17,6 @@ workspace/workspaces/*/knowledge/vectors.db
 workspace/reports/
 workspace/research/
 workspace/docs/
-workspace/workspaces/lars-van-der-berg/
-workspace/workspaces/larsvanderberg/
-data/workspaces/larsvanderberg/
 **/.nanobot/
 skill-sets/*/memory/chats/
 skill-sets/*/sessions/

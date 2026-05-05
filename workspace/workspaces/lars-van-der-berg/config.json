@@ -1,0 +1,31 @@
+{
+  "agents": {
+    "defaults": {
+      "workspace": "/app/data/workspaces/lars-van-der-berg",
+      "model": "glm-5.1:cloud",
+      "provider": "ollamaCloud",
+      "maxTokens": 8192,
+      "contextWindowTokens": 32768,
+      "temperature": 0.8,
+      "maxToolIterations": 50,
+      "timezone": "Europe/Brussels"
+    }
+  },
+  "channels": {
+    "sendProgress": false,
+    "sendToolHints": false,
+    "sendMaxRetries": 3
+  },
+  "providers": {
+    "ollamaCloud": {
+      "label": "Ollama Cloud",
+      "apiKey": "",
+      "apiBase": "http://host.docker.internal:11434/v1",
+      "models": ["glm-5.1:cloud"]
+    }
+  },
+  "gateway": {
+    "host": "0.0.0.0",
+    "port": 6161
+  }
+}
