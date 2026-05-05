@@ -32,6 +32,18 @@ data/factory.db
 # Internal docs — not part of public codebase
 docs/
 
-# Copyright — book texts stay local, never commit
+# Copyright — book texts and PDFs stay local, never commit
 data/workspaces/*/workspace/library/*.txt
 workspace/workspaces/*/workspace/library/*.txt
+**/*.pdf
+
+# Client data — real company audits/proposals stay local
+workspace/workspaces/geo-seo/workspace/examples/electron-srl.com-*
+data/workspaces/geo-seo/workspace/examples/electron-srl.com-*
+workspace/workspaces/geo-seo/workspace/reports/
+data/workspaces/geo-seo/workspace/reports/
+
+# Runtime cursor/IDE files
+**/.cursor
+**/.dream_cursor
+**/*.bak
