@@ -31,3 +31,7 @@ data/factory.db
 
 # Internal docs — not part of public codebase
 docs/
+
+# Copyright — book texts stay local, never commit
+data/workspaces/*/workspace/library/*.txt
+workspace/workspaces/*/workspace/library/*.txt
