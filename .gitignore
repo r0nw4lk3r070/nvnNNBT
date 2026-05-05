@@ -31,3 +31,6 @@ __pycache__/
 *.db-shm
 *.db-wal
 data/factory.db
+
+# Internal docs — not part of public codebase
+docs/
